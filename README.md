@@ -94,7 +94,11 @@ Your APK will be ready in **~1 second**.
 
 
 <summary>DEV Roadmap</summary>
-
+- [ ] v0.0.17 выбор иконки приложения прямо на странице 
+- [ ] v0.0.16 выбора прелоадера прямо на странице плюс дефолтный 
+- [ ] v0.0.15 в названии приложения не должно быть .apk пользователь должен видеть только название приложения после установки приложения 
+- [ ] v0.0.14 мы сделали не сахронять кэш надо убедиться что сахроняются логины и localstorage, cookies, sessions 
+- [x] v0.0.13 README.md future tasks updated
 - [x] v0.0.12 UI Polish & Stability Improvements
 - [x] v0.0.11 Ultra Fast Builder - Binary Patching
 - [x] v0.0.10 readme.md updated
@@ -111,7 +115,7 @@ Your APK will be ready in **~1 second**.
 ### Github Update
 ```bash
 git add .
-git commit -m "v0.0.12 UI Polish & Stability Improvements"
+git commit -m "v0.0.13 README.md future tasks updated"
 git push
 ```
 
