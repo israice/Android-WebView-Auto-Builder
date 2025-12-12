@@ -17,6 +17,12 @@
     Date: 2025-12-11
 #>
 
+param (
+    [switch]$NoCleanup
+)
+
+Write-Host "DEBUG: NoCleanup is $NoCleanup"
+
 $ErrorActionPreference = "Stop"
 $ProgressPreference = 'SilentlyContinue'
 
@@ -37,6 +43,8 @@ else {
 $PackageName = "org.weforks.crazywalk"
 $SdkVersion = "33"
 $BuildToolsVersion = "33.0.1"
+
+
 
 # Directories
 $WorkDir = "$PSScriptRoot\..\android_build_env"
@@ -506,6 +514,9 @@ dependencies {
 "@
 
     # 5. MainActivity.java
+    New-Item -ItemType Directory -Path "$ProjectDir\app\src\main\assets" -Force | Out-Null
+    Set-Content -Path "$ProjectDir\app\src\main\assets\config.properties" -Value "url=$AppUrl"
+
     Set-Content -Path "$ProjectDir\app\src\main\java\org\weforks\crazywalk\MainActivity.java" -Value @"
 package $PackageName;
 
@@ -514,6 +525,8 @@ import android.os.Bundle;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import java.io.InputStream;
+import java.util.Properties;
 
 public class MainActivity extends Activity {
     private WebView myWebView;
@@ -533,7 +546,18 @@ public class MainActivity extends Activity {
         myWebView.clearCache(true);
 
         myWebView.setWebViewClient(new WebViewClient());
-        myWebView.loadUrl("$AppUrl");
+        
+        String url = "$AppUrl"; // Fallback
+        try {
+            InputStream inputStream = getAssets().open("config.properties");
+            Properties properties = new Properties();
+            properties.load(inputStream);
+            url = properties.getProperty("url", "$AppUrl");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        
+        myWebView.loadUrl(url);
     }
 
     @Override
@@ -619,8 +643,7 @@ function Invoke-ApkBuild {
             
             $null = Invoke-CommandWithProgress $GradleCmd "--stop" $ProjectDir
             
-            # Cleanup
-            Clear-BuildEnvironment
+
         }
     }
     else {
@@ -662,9 +685,14 @@ catch {
     Write-Error $_.Exception.Message
 }
 finally {
-    # 4. Post-execution Cleanup (Delete Everything - Always runs)
-    Show-Progress 95 "Cleaning up..."
-    Clear-BuildEnvironment
+    # 4. Post-execution Cleanup (Delete Everything - Always runs unless NoCleanup is set)
+    if (-not $NoCleanup) {
+        Show-Progress 95 "Cleaning up..."
+        Clear-BuildEnvironment
+    }
+    else {
+        Show-Progress 95 "Skipping cleanup..."
+    }
     Show-Progress 100 "Finished."
     Write-Host ""
 }

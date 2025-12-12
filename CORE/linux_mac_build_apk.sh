@@ -25,6 +25,7 @@ while [[ "$#" -gt 0 ]]; do
         --url) APP_URL="$2"; shift ;;
         --name) APK_FILENAME="$2"; shift ;;
         --id) JOB_ID="$2"; shift ;;
+        --no-cleanup) NO_CLEANUP=true ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
     shift
@@ -80,6 +81,11 @@ esac
 # --- Functions ---
 
 function cleanup() {
+    if [ "$NO_CLEANUP" = true ]; then
+        echo "Skipping cleanup as requested."
+        return
+    fi
+
     echo "Cleaning up..."
     # Kill lingering daemons
     pkill -f "gradle" || true
@@ -260,6 +266,12 @@ EOF
 </manifest>
 EOF
 
+    # Create assets directory
+    mkdir -p "$PROJECT_DIR/app/src/main/assets"
+    
+    # config.properties
+    echo "url=$APP_URL" > "$PROJECT_DIR/app/src/main/assets/config.properties"
+
     # MainActivity.java
     cat <<EOF > "$PROJECT_DIR/app/src/main/java/org/weforks/crazywalk/MainActivity.java"
 package $PACKAGE_NAME;
@@ -268,6 +280,8 @@ import android.os.Bundle;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import java.io.InputStream;
+import java.util.Properties;
 
 public class MainActivity extends Activity {
     private WebView myWebView;
@@ -282,7 +296,18 @@ public class MainActivity extends Activity {
         webSettings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         myWebView.clearCache(true);
         myWebView.setWebViewClient(new WebViewClient());
-        myWebView.loadUrl("$APP_URL");
+        
+        String url = "$APP_URL"; // Fallback
+        try {
+            InputStream inputStream = getAssets().open("config.properties");
+            Properties properties = new Properties();
+            properties.load(inputStream);
+            url = properties.getProperty("url", "$APP_URL");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        
+        myWebView.loadUrl(url);
     }
     @Override
     public void onBackPressed() {

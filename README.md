@@ -1,7 +1,7 @@
 <div align="center">
 
 # 🚀 Android-WebView-Auto-Builder
-### Turn any URL into an APK in seconds. Zero Setup.
+### Turn any URL into an APK in **< 1 second**. Zero Setup.
 
 
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-blue?style=for-the-badge&logo=linux)](https://github.com/)
@@ -16,21 +16,21 @@
 
 <p align="center">
   <b>No Android Studio. No Java installation required. No headaches.</b><br>
-  Just run the script, and get your APK.
+  Just run the script, and get your APK instantly.
 </p>
 
 </div>
 
 <div align="center">
-  <img src="CORE/screenshot1.png" alt="Описание" width="600">
+  <img src="CORE/screenshot1.png" alt="Dashboard" width="600">
 </div>
 
 <div align="center">
-  <img src="CORE/screenshot2.png" alt="Описание" width="600">
+  <img src="CORE/screenshot2.png" alt="Building" width="600">
 </div>
 
 <div align="center">
-  <img src="CORE/screenshot3.png" alt="Описание" width="600">
+  <img src="CORE/screenshot3.png" alt="Success" width="600">
 </div>
 
 ## 🚀 Live Website
@@ -40,54 +40,49 @@
 
 ## ⚡ Why this exists?
 Building a simple WebView app shouldn't require installing **20GB** of Android Studio. 
-This tool automates the entire toolchain:
+This tool automates the entire toolchain and uses **Binary Patching** to generate APKs instantly.
+
 1.  **Downloads** portable Java & Android SDK (sandboxed).
-2.  **Generates** a minimal, optimized Android project.
-3.  **Builds** the APK using Gradle.
-4.  **Cleans up** everything, leaving your system spotless.
+2.  **Generates** a "Template" APK once.
+3.  **Patches** the binary `AndroidManifest.xml` and `assets` in milliseconds.
+4.  **Signs** the APK and delivers it.
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Configure
-Edit `settings.yaml` to set your target URL and App Name:
-```yaml
-redirect_to_url: "https://your-website.com"
-apk_name: "MyApp.apk"
-```
+### 1. Run the Server
 
-### 2. Build
-Run the magic script for your OS:
-
-#### 🪟 Windows
+#### 🪟 Windows (Python)
 ```powershell
-.\CORE\windows_build_apk.ps1
+python server.py
 ```
 
-#### 🐧 Linux / 🍎 macOS
+#### 🐧 Linux / 🍎 macOS (Python)
 ```bash
-chmod +x CORE/linux_mac_build_apk.sh
-./CORE/linux_mac_build_apk.sh
-chmod +x CORE/linux_mac_build_apk.sh
-./CORE/linux_mac_build_apk.sh
+python3 server.py
 ```
 
-#### 🐳 Docker
+#### 🐳 Docker (Recommended)
 ```bash
 docker compose up --build -d
 ```
+*Note: The first run will take a minute to download the SDK and build the template. Subsequent runs are instant.*
 
-### 3. Done!
-Your APK will appear in the `FINISHED_HERE` folder:
-`📂 ./FINISHED_HERE/MyApp.apk`
+### 2. Build APK
+Open **http://localhost:5001** in your browser.
+1. Enter your **URL** (e.g., `https://google.com`).
+2. Enter your **App Name** (e.g., `My App`).
+3. Click **Build APK**.
+
+Your APK will be ready in **~1 second**.
 
 ---
 
 ## 🛠️ Features
+-   **⚡ Ultra Fast:** Uses **Binary Patching** to generate APKs in sub-second time.
 -   **📦 Zero Dependencies:** Uses portable versions of OpenJDK and Command Line Tools.
 -   **🛡️ Sandboxed:** All build tools are kept in `android_build_env` and removed after building.
--   **⚡ Lightning Fast:** Uses `curl` and `tar` for maximum download/extraction speed.
 -   **🔄 Smart Caching:** Downloads tools once. Subsequent builds are instant.
 -   **🔒 Secure:** No admin rights required. No system environment variables changed.
 -   **🌐 Web Dashboard:** Beautiful 3D interactive UI with real-time progress tracking.
@@ -100,6 +95,7 @@ Your APK will appear in the `FINISHED_HERE` folder:
 
 <summary>DEV Roadmap</summary>
 
+- [x] v0.0.11 Ultra Fast Builder - Binary Patching
 - [x] v0.0.10 readme.md updated
 - [x] v0.0.9 added to server apk.weforks.org
 - [x] v0.0.8 screenshots added to README.md
@@ -108,13 +104,13 @@ Your APK will appear in the `FINISHED_HERE` folder:
 - [x] v0.0.5 Multi-user concurrency suppor
 - [x] v0.0.4 Added Docker support for isolate builds
 - [x] v0.0.3 Added Linux & macOS support (Bash sript)
-- [x] v0.0.2 Implemented "Jokes Progress Bar" & I polish
+- [x] v0.0.2 Implemented "Jokes Progress Bar"
 - [x] v0.0.1 Initial Windows PowerShell automation
 
 ### Github Update
 ```bash
 git add .
-git commit -m "v0.0.10 readme.md updated"
+git commit -m "v0.0.11 Ultra Fast Builder - Binary Patching"
 git push
 ```
 
@@ -126,4 +122,3 @@ git push
 <div align="center">
   <sub>Built with ❤️ for speed.</sub>
 </div>
-

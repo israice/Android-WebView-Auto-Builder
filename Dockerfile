@@ -11,8 +11,9 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     python3 \
     python3-pip \
+    openjdk-17-jdk-headless \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install flask
+RUN pip3 install flask requests
 
 WORKDIR /app
