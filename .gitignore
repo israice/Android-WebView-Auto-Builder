@@ -1,2 +1,9 @@
 android_build_env
 FINISHED_HERE
+CORE/apk_template
+CORE/apk_template_ultra
+CORE/apktool.jar
+CORE/debug.keystore
+__pycache__/
+*.pyc
+.vscode/

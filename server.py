@@ -11,19 +11,13 @@ app = Flask(__name__)
 # Configuration
 CORE_DIR = os.path.join(os.getcwd(), 'CORE')
 OUTPUT_DIR = os.path.join(os.getcwd(), 'FINISHED_HERE')
-JOKES_FILE = os.path.join(CORE_DIR, 'jokes.txt')
+
 BUILD_SCRIPT = os.path.join(CORE_DIR, 'linux_mac_build_apk.sh')
 
 # Global state to track jobs
 jobs = {}
 
-def load_jokes():
-    if os.path.exists(JOKES_FILE):
-        with open(JOKES_FILE, 'r', encoding='utf-8') as f:
-            return [line.strip() for line in f if line.strip()]
-    return ["Loading..."]
 
-JOKES = load_jokes()
 
 from CORE.ultra_fast_builder import UltraFastBuilder
 
@@ -122,8 +116,7 @@ def status(job_id):
         
     response = {
         'status': job['status'],
-        'progress': job.get('progress', 0),
-        'joke': random.choice(JOKES)
+        'progress': job.get('progress', 0)
     }
     
     if job['status'] == 'completed':
