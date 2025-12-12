@@ -28,6 +28,11 @@
 ![alt text](core/screebshot3.png)
 
 
+## 🚀 Live Website
+
+> **Try it instantly:**  
+> https://translateme.online/
+
 ## ⚡ Why this exists?
 Building a simple WebView app shouldn't require installing **20GB** of Android Studio. 
 This tool automates the entire toolchain:
@@ -90,6 +95,7 @@ Your APK will appear in the `FINISHED_HERE` folder:
 
 <summary>DEV Roadmap</summary>
 
+- [x] v0.0.10 readme.md updated
 - [x] v0.0.9 added to server apk.weforks.org
 - [x] v0.0.8 screenshots added to README.md
 - [x] v0.0.7 Implement APK Signing & Keystor management
@@ -103,7 +109,7 @@ Your APK will appear in the `FINISHED_HERE` folder:
 ### Github Update
 ```bash
 git add .
-git commit -m "v0.0.9 added to server apk.weforks.org"
+git commit -m "v0.0.10 readme.md updated"
 git push
 ```
 
