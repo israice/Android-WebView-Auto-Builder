@@ -21,11 +21,11 @@
 
 </div>
 
-![alt text](core/screebshot1.png)
+<img src="core/screenshot1.png" alt="Описание" width="300">
 
-![alt text](core/screebshot2.png)
+<img src="core/screenshot2.png" alt="Описание" width="300">
 
-![alt text](core/screebshot3.png)
+<img src="core/screenshot3.png" alt="Описание" width="300">
 
 
 ## 🚀 Live Website
