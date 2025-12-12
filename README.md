@@ -3,6 +3,7 @@
 # 🚀 Android-WebView-Auto-Builder
 ### Turn any URL into an APK in seconds. Zero Setup.
 
+
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-blue?style=for-the-badge&logo=linux)](https://github.com/)
 [![Dependencies](https://img.shields.io/badge/Dependencies-None-success?style=for-the-badge)](https://github.com/)
 [![License](https://img.shields.io/badge/License-MIT-orange?style=for-the-badge)](https://github.com/)
@@ -20,7 +21,12 @@
 
 </div>
 
----
+![alt text](core/screebshot1.png)
+
+![alt text](core/screebshot2.png)
+
+![alt text](core/screebshot3.png)
+
 
 ## ⚡ Why this exists?
 Building a simple WebView app shouldn't require installing **20GB** of Android Studio. 
@@ -84,7 +90,9 @@ Your APK will appear in the `FINISHED_HERE` folder:
 
 <summary>DEV Roadmap</summary>
 
-- [ ] v0.0.7 Implement APK Signing & Keystor management
+- [x] v0.0.9 added to server apk.weforks.org
+- [x] v0.0.8 screenshots added to README.md
+- [x] v0.0.7 Implement APK Signing & Keystor management
 - [x] v0.0.6 Web UI with 3D background & SessionPersistence
 - [x] v0.0.5 Multi-user concurrency suppor
 - [x] v0.0.4 Added Docker support for isolate builds
@@ -95,7 +103,7 @@ Your APK will appear in the `FINISHED_HERE` folder:
 ### Github Update
 ```bash
 git add .
-git commit -m "v0.0.7 Implement APK Signing & Keystor management"
+git commit -m "v0.0.9 added to server apk.weforks.org"
 git push
 ```
 
