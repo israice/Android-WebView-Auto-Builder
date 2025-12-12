@@ -46,17 +46,25 @@ Run the magic script for your OS:
 
 #### 🪟 Windows
 ```powershell
-.\A_windows_build_apk.ps1
+.\CORE\windows_build_apk.ps1
 ```
 
 #### 🐧 Linux / 🍎 macOS
 ```bash
-bash B_linux_build_apk.sh
+chmod +x CORE/linux_mac_build_apk.sh
+./CORE/linux_mac_build_apk.sh
+chmod +x CORE/linux_mac_build_apk.sh
+./CORE/linux_mac_build_apk.sh
+```
+
+#### 🐳 Docker
+```bash
+docker compose up --build -d
 ```
 
 ### 3. Done!
-Your APK will appear in the root folder:
-`📂 ./MyApp.apk`
+Your APK will appear in the `FINISHED_HERE` folder:
+`📂 ./FINISHED_HERE/MyApp.apk`
 
 ---
 
@@ -66,16 +74,33 @@ Your APK will appear in the root folder:
 -   **⚡ Lightning Fast:** Uses `curl` and `tar` for maximum download/extraction speed.
 -   **🔄 Smart Caching:** Downloads tools once. Subsequent builds are instant.
 -   **🔒 Secure:** No admin rights required. No system environment variables changed.
+-   **🌐 Web Dashboard:** Beautiful 3D interactive UI with real-time progress tracking.
+-   **👥 Multi-User Concurrency:** Supports multiple simultaneous builds with isolated environments.
+-   **💾 Session Persistence:** Refreshing the page doesn't lose your build progress.
 
 ---
+<details>
 
-## 🗑️ Manual Cleanup
-The script auto-cleans, but if you interrupted it, use these:
 
-| OS | Command |
-| :--- | :--- |
-| **Windows** | `.\AA_windows_clean_build_folder_manualy.ps1` |
-| **Linux/Mac** | `bash BA_linux_clean_build_folder_manualy.sh` |
+<summary>DEV Roadmap</summary>
+
+- [ ] v0.0.7 Implement APK Signing & Keystor management
+- [x] v0.0.6 Web UI with 3D background & SessionPersistence
+- [x] v0.0.5 Multi-user concurrency suppor
+- [x] v0.0.4 Added Docker support for isolate builds
+- [x] v0.0.3 Added Linux & macOS support (Bash sript)
+- [x] v0.0.2 Implemented "Jokes Progress Bar" & I polish
+- [x] v0.0.1 Initial Windows PowerShell automation
+
+### Github Update
+```bash
+git add .
+git commit -m "v0.0.7 Implement APK Signing & Keystor management"
+git push
+```
+
+
+</details>
 
 ---
 

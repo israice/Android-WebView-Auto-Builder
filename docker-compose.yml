@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  builder:
+    build: .
+    volumes:
+      - .:/app
+    tty: true
+    stdin_open: true
+    ports:
+      - "5000:5000"
+    # Ensure script is executable, fix line endings (for Windows users), and run the web server
+    command: /bin/bash -c "dos2unix CORE/linux_mac_build_apk.sh && chmod +x CORE/linux_mac_build_apk.sh && python3 server.py"

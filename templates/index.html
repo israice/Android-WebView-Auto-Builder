@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APK Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <script src="https://twgljs.org/dist/4.x/twgl-full.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #6366f1;
+            --secondary-color: #a855f7;
+            --accent-color: #ec4899;
+            --text-color: #f8fafc;
+            --text-muted: #94a3b8;
+            --bg-color: #0f172a;
+            --glass-bg: rgba(255, 255, 255, 0.03);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --input-bg: rgba(255, 255, 255, 0.03);
+
+            /* Spacing System (8px grid) */
+            --space-xs: 8px;
+            --space-sm: 16px;
+            --space-md: 24px;
+            --space-lg: 32px;
+            --space-xl: 48px;
+            --space-xxl: 64px;
+
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            position: relative;
+            padding: var(--space-md);
+        }
+
+        /* WebGL Background */
+        #c {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            display: block;
+        }
+
+        /* Glassmorphism Container */
+        .container {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-xl);
+            padding: var(--space-xxl);
+            width: 100%;
+            max-width: 520px;
+            box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        .container:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 50px 100px -20px rgba(0, 0, 0, 0.6);
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: var(--space-lg);
+                border-radius: var(--radius-lg);
+            }
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h1 {
+            font-size: 2.75rem;
+            font-weight: 800;
+            margin-bottom: var(--space-xl);
+            background: linear-gradient(to right, #fff, #cbd5e1);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+        }
+
+        /* Form Elements */
+        .input-group {
+            margin-bottom: var(--space-lg);
+            text-align: left;
+            position: relative;
+        }
+
+        label {
+            display: block;
+            margin-bottom: var(--space-xs);
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            letter-spacing: 0.01em;
+            transition: color 0.3s ease;
+        }
+
+        .input-group:focus-within label {
+            color: var(--text-color);
+        }
+
+        input {
+            width: 100%;
+            padding: var(--space-sm) var(--space-md);
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            color: white;
+            font-size: 1.05rem;
+            line-height: 1.5;
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        input:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        input::placeholder {
+            color: #64748b;
+        }
+
+        button {
+            width: 100%;
+            padding: var(--space-sm) var(--space-md);
+            margin-top: var(--space-sm);
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border: none;
+            border-radius: var(--radius-lg);
+            font-size: 1.05rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 0.01em;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 24px -8px var(--primary-color);
+            filter: brightness(1.1);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Progress Area */
+        #progress-area {
+            display: none;
+            margin-top: var(--space-xl);
+            animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .loader-container {
+            position: relative;
+            width: 80px;
+            height: 80px;
+            margin: 0 auto var(--space-lg);
+        }
+
+        .loader {
+            width: 100%;
+            height: 100%;
+            border: 3px solid rgba(255, 255, 255, 0.05);
+            border-top-color: var(--accent-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .progress-container {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 100px;
+            overflow: hidden;
+            margin-bottom: var(--space-lg);
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+            width: 0%;
+            transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 12px var(--primary-color);
+            border-radius: 100px;
+        }
+
+        .status-text {
+            font-size: 0.95rem;
+            color: var(--text-muted);
+            margin-bottom: var(--space-xs);
+            font-weight: 500;
+        }
+
+        .joke-box {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: var(--radius-lg);
+            padding: var(--space-md);
+            font-style: italic;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--glass-border);
+        }
+
+        /* Download Button */
+        #download-btn {
+            background: linear-gradient(135deg, #10b981, #059669);
+            display: none;
+            margin-top: var(--space-lg);
+        }
+
+        #download-btn:hover {
+            box-shadow: 0 12px 24px -8px #10b981;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="c"></canvas>
+
+    <div class="container">
+        <h1>APK Generator</h1>
+
+        <div id="input-area">
+            <div class="input-group">
+                <label for="apk-name">App Name</label>
+                <input type="text" id="apk-name" placeholder="e.g., My Awesome App" required>
+            </div>
+            <div class="input-group">
+                <label for="url">Website URL</label>
+                <input type="url" id="url" placeholder="e.g., https://example.com" required>
+            </div>
+            <button id="create-btn" onclick="startBuild()">
+                Create APK
+            </button>
+        </div>
+
+        <div id="progress-area">
+            <div class="loader-container">
+                <div class="loader"></div>
+            </div>
+            <div class="status-text" id="status-text">Building your app...</div>
+            <div class="progress-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <div class="joke-box" id="joke-text">Loading some humor...</div>
+        </div>
+
+        <a id="download-link" style="text-decoration: none;">
+            <button id="download-btn">Download APK</button>
+        </a>
+    </div>
+
+    <!-- WebGL Background Script -->
+    <script>
+        const m4 = twgl.m4;
+        const gl = document.querySelector("#c").getContext("webgl");
+        const programInfo = twgl.createProgramInfo(gl, [
+            `
+            attribute vec4 position;
+            attribute vec3 normal;
+            uniform mat4 u_worldViewProjection;
+            uniform mat4 u_worldInverseTranspose;
+            varying vec3 v_normal;
+            void main() {
+                gl_Position = u_worldViewProjection * position;
+                v_normal = (u_worldInverseTranspose * vec4(normal, 0)).xyz;
+            }
+            `,
+            `
+            precision mediump float;
+            varying vec3 v_normal;
+            uniform vec3 u_lightWorldPos;
+            uniform vec4 u_color;
+            void main() {
+                vec3 normal = normalize(v_normal);
+                vec3 lightDir = normalize(u_lightWorldPos);
+                float light = dot(normal, lightDir) * 0.5 + 0.5;
+                gl_FragColor = u_color * light;
+            }
+            `
+        ]);
+
+        const arrays = {
+            sphere: twgl.primitives.createSphereVertices(10, 24, 12),
+            cube: twgl.primitives.createCubeVertices(15),
+            cone: twgl.primitives.createTruncatedConeVertices(10, 0, 20, 24, 1),
+        };
+        const bufferInfos = {
+            sphere: twgl.createBufferInfoFromArrays(gl, arrays.sphere),
+            cube: twgl.createBufferInfoFromArrays(gl, arrays.cube),
+            cone: twgl.createBufferInfoFromArrays(gl, arrays.cone),
+        };
+
+        const objects = [];
+        const shapes = ['sphere', 'cube', 'cone'];
+        const colors = [
+            [0.39, 0.4, 0.95, 1], // Primary
+            [0.66, 0.33, 0.97, 1], // Secondary
+            [0.93, 0.28, 0.6, 1]   // Accent
+        ];
+
+        for (let i = 0; i < 20; i++) {
+            objects.push({
+                type: shapes[Math.floor(Math.random() * shapes.length)],
+                color: colors[Math.floor(Math.random() * colors.length)],
+                x: (Math.random() - 0.5) * 100,
+                y: (Math.random() - 0.5) * 100,
+                z: (Math.random() - 0.5) * 50 - 20,
+                ySpeed: (Math.random() - 0.5) * 0.05,
+                rotSpeed: (Math.random() - 0.5) * 0.05,
+                scale: Math.random() * 0.5 + 0.5,
+            });
+        }
+
+        function render(time) {
+            time *= 0.001;
+            twgl.resizeCanvasToDisplaySize(gl.canvas);
+            gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+            gl.enable(gl.DEPTH_TEST);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+            const fov = 30 * Math.PI / 180;
+            const aspect = gl.canvas.clientWidth / gl.canvas.clientHeight;
+            const zNear = 0.5;
+            const zFar = 200;
+            const projection = m4.perspective(fov, aspect, zNear, zFar);
+            const eye = [0, 0, 100];
+            const target = [0, 0, 0];
+            const up = [0, 1, 0];
+            const camera = m4.lookAt(eye, target, up);
+            const view = m4.inverse(camera);
+            const viewProjection = m4.multiply(projection, view);
+
+            gl.useProgram(programInfo.program);
+            twgl.setUniforms(programInfo, {
+                u_lightWorldPos: [1, 8, -10],
+            });
+
+            objects.forEach((obj) => {
+                let world = m4.identity();
+                world = m4.translate(world, [obj.x, obj.y + Math.sin(time + obj.x) * 5, obj.z]);
+                world = m4.rotateY(world, time * obj.rotSpeed);
+                world = m4.rotateX(world, time * obj.rotSpeed);
+                world = m4.scale(world, [obj.scale, obj.scale, obj.scale]);
+
+                twgl.setUniforms(programInfo, {
+                    u_worldViewProjection: m4.multiply(viewProjection, world),
+                    u_worldInverseTranspose: m4.transpose(m4.inverse(world)),
+                    u_color: obj.color,
+                });
+
+                twgl.setBuffersAndAttributes(gl, programInfo, bufferInfos[obj.type]);
+                twgl.drawBufferInfo(gl, bufferInfos[obj.type]);
+            });
+
+            requestAnimationFrame(render);
+        }
+        requestAnimationFrame(render);
+    </script>
+
+    <!-- App Logic Script -->
+    <script>
+        let pollInterval;
+
+        async function startBuild() {
+            const apkName = document.getElementById('apk-name').value;
+            const url = document.getElementById('url').value;
+
+            if (!apkName || !url) {
+                // Shake animation for error
+                const container = document.querySelector('.container');
+                container.style.animation = 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both';
+                setTimeout(() => container.style.animation = '', 500);
+                return;
+            }
+
+            // Transition UI
+            const inputArea = document.getElementById('input-area');
+            inputArea.style.opacity = '0';
+            inputArea.style.transform = 'translateY(-20px)';
+
+            setTimeout(() => {
+                inputArea.style.display = 'none';
+                const progressArea = document.getElementById('progress-area');
+                progressArea.style.display = 'block';
+            }, 300);
+
+            try {
+                const response = await fetch('/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apk_name: apkName, url: url })
+                });
+
+                const data = await response.json();
+                if (data.job_id) {
+                    localStorage.setItem('apk_build_job_id', data.job_id);
+                    pollStatus(data.job_id);
+                } else {
+                    alert('Failed to start build.');
+                    resetUI();
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred.');
+                resetUI();
+            }
+        }
+
+        function pollStatus(jobId) {
+            pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/status/${jobId}`);
+
+                    if (response.status === 404) {
+                        clearInterval(pollInterval);
+                        localStorage.removeItem('apk_build_job_id');
+                        alert('Session expired or build not found. Please start a new build.');
+                        resetUI();
+                        return;
+                    }
+
+                    const data = await response.json();
+
+                    if (data.joke) {
+                        const jokeBox = document.getElementById('joke-text');
+                        jokeBox.style.opacity = 0;
+                        setTimeout(() => {
+                            jokeBox.innerText = data.joke;
+                            jokeBox.style.opacity = 1;
+                        }, 300);
+                    }
+
+                    if (data.progress !== undefined) {
+                        const progressBar = document.getElementById('progress-bar');
+                        const statusText = document.getElementById('status-text');
+                        progressBar.style.width = data.progress + '%';
+                        statusText.innerText = `Building... ${data.progress}%`;
+                    }
+
+                    if (data.status === 'completed') {
+                        clearInterval(pollInterval);
+                        showDownload(data.download_url);
+                    } else if (data.status === 'failed') {
+                        clearInterval(pollInterval);
+                        localStorage.removeItem('apk_build_job_id');
+                        alert('Build failed.');
+                        resetUI();
+                    }
+                } catch (error) {
+                    console.error('Error polling status:', error);
+                }
+            }, 3000);
+        }
+
+        function showDownload(url) {
+            const progressArea = document.getElementById('progress-area');
+            progressArea.style.opacity = '0';
+
+            setTimeout(() => {
+                progressArea.style.display = 'none';
+                const downloadBtn = document.getElementById('download-btn');
+                const downloadLink = document.getElementById('download-link');
+
+                downloadLink.href = url;
+                downloadBtn.style.display = 'block';
+                downloadBtn.style.animation = 'fadeIn 0.5s ease-out';
+
+                // Confetti or success effect could go here
+
+                downloadBtn.onclick = () => {
+                    localStorage.removeItem('apk_build_job_id');
+                    setTimeout(() => location.reload(), 3000);
+                };
+            }, 300);
+        }
+
+        function resetUI() {
+            const inputArea = document.getElementById('input-area');
+            const progressArea = document.getElementById('progress-area');
+
+            progressArea.style.display = 'none';
+            inputArea.style.display = 'block';
+
+            setTimeout(() => {
+                inputArea.style.opacity = '1';
+                inputArea.style.transform = 'translateY(0)';
+            }, 50);
+
+            document.getElementById('download-btn').style.display = 'none';
+        }
+
+        // Add shake keyframes dynamically
+        const styleSheet = document.createElement("style");
+        styleSheet.innerText = `
+            @keyframes shake {
+                10%, 90% { transform: translate3d(-1px, 0, 0); }
+                20%, 80% { transform: translate3d(2px, 0, 0); }
+                30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+                40%, 60% { transform: translate3d(4px, 0, 0); }
+            }
+        `;
+        document.head.appendChild(styleSheet);
+
+        // Restore session on load
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedJobId = localStorage.getItem('apk_build_job_id');
+            if (savedJobId) {
+                // Restore UI state
+                const inputArea = document.getElementById('input-area');
+                const progressArea = document.getElementById('progress-area');
+
+                inputArea.style.display = 'none';
+                progressArea.style.display = 'block';
+
+                // Resume polling
+                pollStatus(savedJobId);
+            }
+        });
+    </script>
+</body>
+
+</html>
