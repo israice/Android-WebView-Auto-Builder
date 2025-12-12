@@ -31,7 +31,7 @@
 ## 🚀 Live Website
 
 > **Try it instantly:**  
-> https://translateme.online/
+> https://apk.weforks.org/
 
 ## ⚡ Why this exists?
 Building a simple WebView app shouldn't require installing **20GB** of Android Studio. 
