@@ -21,11 +21,11 @@
 
 </div>
 
-<img src="core/screenshot1.png" alt="Описание" width="300">
+<img src="CORE/screenshot1.png" alt="Описание" width="300">
 
-<img src="core/screenshot2.png" alt="Описание" width="300">
+<img src="CORE/screenshot2.png" alt="Описание" width="300">
 
-<img src="core/screenshot3.png" alt="Описание" width="300">
+<img src="CORE/screenshot3.png" alt="Описание" width="300">
 
 
 ## 🚀 Live Website
