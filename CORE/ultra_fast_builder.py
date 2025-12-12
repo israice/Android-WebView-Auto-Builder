@@ -54,6 +54,48 @@ class UltraFastBuilder:
         if not os.path.exists(template_apk) or not zipalign:
             print("Generating Ultra Fast Template...")
             self._create_template()
+            
+        self._ensure_keystore()
+
+    def _ensure_keystore(self):
+        if os.path.exists(self.keystore_path):
+            return
+
+        print("Generating debug.keystore...")
+        keytool = "keytool"
+        if self.is_windows:
+            keytool = "keytool.exe"
+            
+        # Try to find keytool in JDK
+        keytool_path = None
+        possible_path = os.path.join(self.jdk_dir, "bin", keytool)
+        
+        if os.path.exists(possible_path):
+            keytool_path = possible_path
+        else:
+            # Fallback to system path
+            keytool_path = keytool
+
+        cmd = [
+            keytool_path, "-genkey", "-v", 
+            "-keystore", self.keystore_path, 
+            "-storepass", "android", 
+            "-alias", "androiddebugkey", 
+            "-keypass", "android", 
+            "-keyalg", "RSA", 
+            "-keysize", "2048", 
+            "-validity", "10000", 
+            "-dname", "CN=Android Debug,O=Android,C=US"
+        ]
+        
+        try:
+            subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            print(f"Created keystore at {self.keystore_path}")
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to generate keystore: {e.stderr.decode('utf-8', errors='ignore')}")
+            # Don't raise, maybe it exists but we can't see it? Or maybe we can proceed without it (unlikely)
+            # But better to fail loud if we can't sign.
+            raise e
 
     def _create_template(self):
         # Reuse the existing build scripts but pass the PLACEHOLDER name
@@ -207,12 +249,16 @@ class UltraFastBuilder:
             env["JAVA_HOME"] = self.jdk_dir
             env["PATH"] = os.path.join(self.jdk_dir, "bin") + os.pathsep + env["PATH"]
             
-        subprocess.run([
-            apksigner, "sign", "--ks", self.keystore_path,
-            "--ks-pass", "pass:android",
-            "--out", final_apk_path,
-            aligned_apk
-        ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        try:
+            subprocess.run([
+                apksigner, "sign", "--ks", self.keystore_path,
+                "--ks-pass", "pass:android",
+                "--out", final_apk_path,
+                aligned_apk
+            ], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+        except subprocess.CalledProcessError as e:
+            print(f"APKSigner Failed! Stderr: {e.stderr.decode('utf-8', errors='ignore')}")
+            raise e
         
         if progress_callback: progress_callback(100)
         

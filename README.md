@@ -85,7 +85,7 @@ Your APK will be ready in **~1 second**.
 -   **🛡️ Sandboxed:** All build tools are kept in `android_build_env` and removed after building.
 -   **🔄 Smart Caching:** Downloads tools once. Subsequent builds are instant.
 -   **🔒 Secure:** No admin rights required. No system environment variables changed.
--   **🌐 Web Dashboard:** Beautiful 3D interactive UI with real-time progress tracking.
+-   **🌐 Web Dashboard:** Beautiful 3D interactive UI with **Glassmorphism**, micro-animations, and real-time progress tracking.
 -   **👥 Multi-User Concurrency:** Supports multiple simultaneous builds with isolated environments.
 -   **💾 Session Persistence:** Refreshing the page doesn't lose your build progress.
 
@@ -95,6 +95,7 @@ Your APK will be ready in **~1 second**.
 
 <summary>DEV Roadmap</summary>
 
+- [x] v0.0.12 UI Polish & Stability Improvements
 - [x] v0.0.11 Ultra Fast Builder - Binary Patching
 - [x] v0.0.10 readme.md updated
 - [x] v0.0.9 added to server apk.weforks.org
@@ -110,7 +111,7 @@ Your APK will be ready in **~1 second**.
 ### Github Update
 ```bash
 git add .
-git commit -m "v0.0.11 Ultra Fast Builder - Binary Patching"
+git commit -m "v0.0.12 UI Polish & Stability Improvements"
 git push
 ```
 
