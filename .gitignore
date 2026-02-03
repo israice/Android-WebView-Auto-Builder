@@ -5,3 +5,5 @@ CORE/apktool.jar
 __pycache__/
 *.pyc
 .vscode/
+.env
+.venv/

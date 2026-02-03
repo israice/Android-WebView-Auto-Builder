@@ -1,4 +1,7 @@
+import hashlib
+import hmac
 import os
+import signal
 import subprocess
 import threading
 import time
@@ -11,8 +14,11 @@ app = Flask(__name__)
 # Configuration
 CORE_DIR = os.path.join(os.getcwd(), 'CORE')
 OUTPUT_DIR = os.path.join(os.getcwd(), 'FINISHED_HERE')
-
 BUILD_SCRIPT = os.path.join(CORE_DIR, 'linux_mac_build_apk.sh')
+
+# Webhook configuration for auto-update
+WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
+BRANCH = os.environ.get("BRANCH", "master")
 
 # Global state to track jobs
 jobs = {}
@@ -63,6 +69,15 @@ def run_build(job_id, apk_name, url):
         print(f"Build error: {e}")
         jobs[job_id]['status'] = 'failed'
         jobs[job_id]['error'] = str(e)
+
+def verify_signature(payload, signature):
+    """Verify GitHub webhook signature"""
+    if not WEBHOOK_SECRET:
+        return False
+    expected = "sha256=" + hmac.new(
+        WEBHOOK_SECRET.encode(), payload, hashlib.sha256
+    ).hexdigest()
+    return hmac.compare_digest(expected, signature)
 
 def delete_file_later(filepath, delay=3):
     def delayed_delete():
@@ -140,9 +155,29 @@ def download(filename):
     
     return send_file(filepath, as_attachment=True)
 
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    """Handle GitHub webhook for auto-update"""
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    if not verify_signature(request.data, signature):
+        return "Forbidden", 403
+
+    if request.headers.get("X-GitHub-Event") == "push":
+        payload = request.get_json(silent=True) or {}
+        ref = payload.get("ref")
+        if ref != f"refs/heads/{BRANCH}":
+            return "Ignored", 200
+
+        print(f"Webhook received: updating from {BRANCH}...")
+        subprocess.run(["git", "fetch", "origin"], cwd="/app")
+        subprocess.run(["git", "reset", "--hard", f"origin/{BRANCH}"], cwd="/app")
+        # Kill gunicorn master process (PID 1 in container) to trigger Docker restart
+        os.kill(1, signal.SIGTERM)
+    return "OK", 200
+
 if __name__ == '__main__':
     # Ensure output directory exists
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
         
-    app.run(host='0.0.0.0', port=5001)
+    app.run(host='0.0.0.0', port=5000)

@@ -1,11 +1,24 @@
 services:
   builder:
+    container_name: android-webView-auto-builder
+    restart: unless-stopped
     build: .
+    ports:
+      - "${PORT}:5000"
     volumes:
       - .:/app
+    environment:
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
+      - BRANCH=${BRANCH:-master}
     tty: true
     stdin_open: true
-    ports:
-      - "5001:5001"
-    # Ensure script is executable, fix line endings (for Windows users), and run the web server
-    command: /bin/bash -c "dos2unix CORE/linux_mac_build_apk.sh && chmod +x CORE/linux_mac_build_apk.sh && python3 server.py"
+    # Ensure script is executable, fix line endings (for Windows users), auto-update from git, and run the web server
+    command: >
+      /bin/bash -c "
+      dos2unix CORE/linux_mac_build_apk.sh &&
+      chmod +x CORE/linux_mac_build_apk.sh &&
+      if [ -d /app/.git ]; then
+        git fetch origin && git reset --hard origin/$${BRANCH:-master} || true
+      fi &&
+      gunicorn --bind 0.0.0.0:5000 --workers 2 --threads 4 server:app
+      "

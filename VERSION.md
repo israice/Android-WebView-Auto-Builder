@@ -13,7 +13,7 @@ git push origin master --force
 
 # UPDATE
 git add .
-git commit -m "v0.0.14 - fixed build issues"
+git commit -m "v0.0.15 - added github webhook to server auto update"
 git push
 
 # DEV LOG
@@ -31,3 +31,4 @@ v0.0.11 - Ultra Fast Builder - Binary Patching
 v0.0.12 - UI Polish & Stability Improvements
 v0.0.13 - README.md future tasks updated
 v0.0.14 - fixed build issues
+v0.0.15 - added github webhook to server auto update
