@@ -93,36 +93,6 @@ Your APK will be ready in **~1 second**.
 <details>
 
 
-<summary>DEV Roadmap</summary>
-
-- [ ] v0.0.19 update screenshots
-- [ ] v0.0.18 добавить в магазин google play 
-- [ ] v0.0.17 выбор иконки приложения прямо на странице 
-- [ ] v0.0.16 выбора прелоадера прямо на странице плюс дефолтный 
-- [ ] v0.0.15 в названии приложения не должно быть .apk пользователь должен видеть только название приложения после установки приложения 
-- [ ] v0.0.14 мы сделали не сахронять кэш надо убедиться что сахроняются логины и localstorage, cookies, sessions 
-- [x] v0.0.13 README.md future tasks updated
-- [x] v0.0.12 UI Polish & Stability Improvements
-- [x] v0.0.11 Ultra Fast Builder - Binary Patching
-- [x] v0.0.10 readme.md updated
-- [x] v0.0.9 added to server apk.weforks.org
-- [x] v0.0.8 screenshots added to README.md
-- [x] v0.0.7 Implement APK Signing & Keystor management
-- [x] v0.0.6 Web UI with 3D background & SessionPersistence
-- [x] v0.0.5 Multi-user concurrency suppor
-- [x] v0.0.4 Added Docker support for isolate builds
-- [x] v0.0.3 Added Linux & macOS support (Bash sript)
-- [x] v0.0.2 Implemented "Jokes Progress Bar"
-- [x] v0.0.1 Initial Windows PowerShell automation
-
-### Github Update
-```bash
-git add .
-git commit -m "v0.0.13 README.md future tasks updated"
-git push
-```
-
-
 </details>
 
 ---

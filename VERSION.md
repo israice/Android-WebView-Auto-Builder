@@ -1,0 +1,33 @@
+
+# RECOVERY
+docker compose up -d --build
+
+
+git log --oneline -n 20
+
+Copy-Item .env $env:TEMP\.env.backup
+git reset --hard 80f714fc
+git clean -fd
+Copy-Item $env:TEMP\.env.backup .env -Force
+git push origin master --force
+
+# UPDATE
+git add .
+git commit -m "v0.0.14 - fixed build issues"
+git push
+
+# DEV LOG
+v0.0.1 - Initial Windows PowerShell automation
+v0.0.2 - Implemented "Jokes Progress Bar"
+v0.0.3 - Added Linux & macOS support (Bash sript)
+v0.0.4 - Added Docker support for isolate builds
+v0.0.5 - Multi-user concurrency suppor
+v0.0.6 - Web UI with 3D background & SessionPersistence
+v0.0.7 - Implement APK Signing & Keystor management
+v0.0.8 - screenshots added to README.md
+v0.0.9 - added to server apk.weforks.org
+v0.0.10 - readme.md updated
+v0.0.11 - Ultra Fast Builder - Binary Patching
+v0.0.12 - UI Polish & Stability Improvements
+v0.0.13 - README.md future tasks updated
+v0.0.14 - fixed build issues

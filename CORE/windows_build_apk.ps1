@@ -21,7 +21,9 @@ param (
     [switch]$NoCleanup
 )
 
-Write-Host "DEBUG: NoCleanup is $NoCleanup"
+# Set console encoding to UTF-8 for proper Unicode display
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
 
 $ErrorActionPreference = "Stop"
 $ProgressPreference = 'SilentlyContinue'
@@ -84,33 +86,34 @@ function Get-RandomJoke {
 
 function Show-ProgressBar {
     param($Percent, $Message)
-    
+
     $Width = 50
     $FilledCount = [Math]::Floor(($Percent / 100) * $Width)
     $EmptyCount = $Width - $FilledCount
-    
-    $Filled = "█" * $FilledCount
-    $Empty = "░" * $EmptyCount
-    
+
+    # Use ASCII characters for maximum compatibility
+    $Filled = "#" * $FilledCount
+    $Empty = "-" * $EmptyCount
+
     # ANSI Colors
     $Cyan = "$([char]27)[96m" # Bright Cyan
     $Green = "$([char]27)[92m" # Bright Green
     $DarkGray = "$([char]27)[90m"
     $Reset = "$([char]27)[0m"
-    
+
     if ($Percent -ge 100) {
         $BarColor = $Green
     }
     else {
         $BarColor = $Cyan
     }
-    
+
     # Truncate message if too long for one line
     $MaxMsgLen = 40
     if ($Message.Length -gt $MaxMsgLen) { $Message = $Message.Substring(0, $MaxMsgLen - 3) + "..." }
-    
+
     # Use Carriage Return (`r) to overwrite line. Add padding spaces at the end to clear previous text.
-    Write-Host -NoNewline "`r$BarColor$Filled$DarkGray$Empty$Reset $Percent% $Message       "
+    Write-Host -NoNewline "`r[$BarColor$Filled$DarkGray$Empty$Reset] $Percent% $Message       "
 }
 
 function Update-Ui {
@@ -488,9 +491,12 @@ dependencies {
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:allowBackup="true"
+        android:usesCleartextTraffic="true"
+        android:networkSecurityConfig="@xml/network_security_config"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -502,6 +508,7 @@ dependencies {
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden"
             android:theme="@style/Theme.CrazyWalk">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -521,52 +528,243 @@ dependencies {
 package $PackageName;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.graphics.Color;
+import android.net.http.SslError;
 import android.os.Bundle;
+import android.view.Gravity;
+import android.view.View;
+import android.webkit.SslErrorHandler;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.LinearLayout;
+import android.widget.ProgressBar;
+import android.widget.TextView;
 import java.io.InputStream;
 import java.util.Properties;
 
 public class MainActivity extends Activity {
     private WebView myWebView;
+    private LinearLayout errorLayout;
+    private ProgressBar progressBar;
+    private FrameLayout rootLayout;
+    private String currentUrl;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
-        myWebView = new WebView(this);
-        setContentView(myWebView);
 
+        // Create root layout
+        rootLayout = new FrameLayout(this);
+        rootLayout.setBackgroundColor(Color.WHITE);
+
+        // Create WebView
+        myWebView = new WebView(this);
+        rootLayout.addView(myWebView, new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT));
+
+        // Create Progress Bar
+        progressBar = new ProgressBar(this);
+        FrameLayout.LayoutParams progressParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.WRAP_CONTENT,
+            FrameLayout.LayoutParams.WRAP_CONTENT);
+        progressParams.gravity = Gravity.CENTER;
+        rootLayout.addView(progressBar, progressParams);
+
+        // Create Error Layout
+        createErrorLayout();
+
+        setContentView(rootLayout);
+
+        // Configure WebView Settings
         WebSettings webSettings = myWebView.getSettings();
         webSettings.setJavaScriptEnabled(true);
         webSettings.setDomStorageEnabled(true);
+        webSettings.setDatabaseEnabled(true);
         webSettings.setCacheMode(WebSettings.LOAD_NO_CACHE);
-        
-        myWebView.clearCache(true);
+        webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        webSettings.setAllowFileAccess(true);
+        webSettings.setAllowContentAccess(true);
+        webSettings.setLoadsImagesAutomatically(true);
+        webSettings.setJavaScriptCanOpenWindowsAutomatically(true);
+        webSettings.setSupportMultipleWindows(false);
+        webSettings.setMediaPlaybackRequiresUserGesture(false);
 
-        myWebView.setWebViewClient(new WebViewClient());
-        
-        String url = "$AppUrl"; // Fallback
+        // Clear cache on every start
+        myWebView.clearCache(true);
+        myWebView.clearHistory();
+
+        // Set Custom WebViewClient with error handling
+        myWebView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                progressBar.setVisibility(View.VISIBLE);
+                errorLayout.setVisibility(View.GONE);
+                myWebView.setVisibility(View.VISIBLE);
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                progressBar.setVisibility(View.GONE);
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                super.onReceivedError(view, request, error);
+                if (request.isForMainFrame()) {
+                    showError("Connection Error", "Unable to load the page. Please check your internet connection.");
+                }
+            }
+
+            @Override
+            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+                new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("SSL Certificate Warning")
+                    .setMessage("There is a problem with the security certificate. Do you want to continue?")
+                    .setPositiveButton("Continue", (dialog, which) -> handler.proceed())
+                    .setNegativeButton("Cancel", (dialog, which) -> {
+                        handler.cancel();
+                        showError("Security Error", "SSL certificate validation failed.");
+                    })
+                    .setCancelable(false)
+                    .show();
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                view.loadUrl(request.getUrl().toString());
+                return true;
+            }
+        });
+
+        // Load URL from config
+        currentUrl = "$AppUrl";
         try {
             InputStream inputStream = getAssets().open("config.properties");
             Properties properties = new Properties();
             properties.load(inputStream);
-            url = properties.getProperty("url", "$AppUrl");
+            currentUrl = properties.getProperty("url", "$AppUrl");
+            inputStream.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
-        
-        myWebView.loadUrl(url);
+
+        loadUrl();
+    }
+
+    private void createErrorLayout() {
+        errorLayout = new LinearLayout(this);
+        errorLayout.setOrientation(LinearLayout.VERTICAL);
+        errorLayout.setGravity(Gravity.CENTER);
+        errorLayout.setBackgroundColor(Color.WHITE);
+        errorLayout.setVisibility(View.GONE);
+
+        TextView errorIcon = new TextView(this);
+        errorIcon.setText("\u26A0");
+        errorIcon.setTextSize(64);
+        errorIcon.setGravity(Gravity.CENTER);
+        errorLayout.addView(errorIcon);
+
+        TextView errorTitle = new TextView(this);
+        errorTitle.setId(android.R.id.title);
+        errorTitle.setText("Error");
+        errorTitle.setTextSize(24);
+        errorTitle.setTextColor(Color.parseColor("#333333"));
+        errorTitle.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT);
+        titleParams.setMargins(0, 32, 0, 16);
+        errorLayout.addView(errorTitle, titleParams);
+
+        TextView errorMessage = new TextView(this);
+        errorMessage.setId(android.R.id.message);
+        errorMessage.setText("Something went wrong");
+        errorMessage.setTextSize(16);
+        errorMessage.setTextColor(Color.parseColor("#666666"));
+        errorMessage.setGravity(Gravity.CENTER);
+        errorMessage.setPadding(48, 0, 48, 0);
+        LinearLayout.LayoutParams msgParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT);
+        msgParams.setMargins(0, 0, 0, 32);
+        errorLayout.addView(errorMessage, msgParams);
+
+        Button retryButton = new Button(this);
+        retryButton.setText("Retry");
+        retryButton.setTextColor(Color.WHITE);
+        retryButton.setBackgroundColor(Color.parseColor("#2196F3"));
+        retryButton.setPadding(64, 24, 64, 24);
+        retryButton.setOnClickListener(v -> {
+            errorLayout.setVisibility(View.GONE);
+            myWebView.setVisibility(View.VISIBLE);
+            loadUrl();
+        });
+        errorLayout.addView(retryButton);
+
+        FrameLayout.LayoutParams errorParams = new FrameLayout.LayoutParams(
+            FrameLayout.LayoutParams.MATCH_PARENT,
+            FrameLayout.LayoutParams.MATCH_PARENT);
+        rootLayout.addView(errorLayout, errorParams);
+    }
+
+    private void showError(String title, String message) {
+        progressBar.setVisibility(View.GONE);
+        myWebView.setVisibility(View.GONE);
+
+        TextView errorTitle = errorLayout.findViewById(android.R.id.title);
+        TextView errorMessage = errorLayout.findViewById(android.R.id.message);
+
+        if (errorTitle != null) errorTitle.setText(title);
+        if (errorMessage != null) errorMessage.setText(message);
+
+        errorLayout.setVisibility(View.VISIBLE);
+    }
+
+    private void loadUrl() {
+        if (currentUrl != null && !currentUrl.isEmpty()) {
+            myWebView.clearCache(true);
+            myWebView.loadUrl(currentUrl);
+        }
     }
 
     @Override
     public void onBackPressed() {
-        if (myWebView.canGoBack()) {
+        if (errorLayout.getVisibility() == View.VISIBLE) {
+            finish();
+        } else if (myWebView.canGoBack()) {
             myWebView.goBack();
         } else {
             super.onBackPressed();
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        myWebView.onResume();
+    }
+
+    @Override
+    protected void onPause() {
+        myWebView.onPause();
+        super.onPause();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (myWebView != null) {
+            myWebView.destroy();
+        }
+        super.onDestroy();
     }
 }
 "@
@@ -595,7 +793,20 @@ public class MainActivity extends Activity {
 <full-backup-content><include domain="root" /></full-backup-content>
 "@
 
-    # 8. Icons
+    # 8. Network Security Config
+    Set-Content -Path "$ProjectDir\app\src\main\res\xml\network_security_config.xml" -Value @"
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
+"@
+
+    # 9. Icons
     New-Item -ItemType Directory -Path "$ProjectDir\app\src\main\res\mipmap-anydpi-v26" -Force | Out-Null
     Set-Content -Path "$ProjectDir\app\src\main\res\mipmap-anydpi-v26\ic_launcher.xml" -Value @"
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
