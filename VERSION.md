@@ -1,3 +1,7 @@
+# PROD RUN
+docker compose down
+docker compose up -d --build
+
 
 # RECOVERY
 docker compose up -d --build
@@ -13,7 +17,7 @@ git push origin master --force
 
 # UPDATE
 git add .
-git commit -m "v0.0.15 - added github webhook to server auto update"
+git commit -m "v0.0.15 - test 1"
 git push
 
 # DEV LOG

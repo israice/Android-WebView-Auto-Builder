@@ -12,8 +12,9 @@ RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
     openjdk-17-jdk-headless \
+    git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install flask requests
+RUN pip3 install flask requests gunicorn
 
 WORKDIR /app
