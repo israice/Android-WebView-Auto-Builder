@@ -1,7 +1,6 @@
 import hashlib
 import hmac
 import os
-import signal
 import subprocess
 import threading
 import time
@@ -175,10 +174,10 @@ def webhook():
         print(f"Webhook received: updating from {BRANCH}...")
         subprocess.run(["git", "fetch", "origin"], cwd="/app")
         subprocess.run(["git", "reset", "--hard", f"origin/{BRANCH}"], cwd="/app")
-        # Sync version badge before restart
+        # Sync version badge before reload
         subprocess.run(["python3", "TOOLS/sync_version.py"], cwd="/app")
-        # Kill gunicorn master process (PID 1 in container) to trigger Docker restart
-        os.kill(1, signal.SIGTERM)
+        # Graceful reload - gunicorn reloads workers without downtime (SIGHUP=1 on Linux)
+        os.kill(1, 1)
     return "OK", 200
 
 if __name__ == '__main__':
