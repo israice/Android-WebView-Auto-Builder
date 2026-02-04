@@ -181,8 +181,11 @@ def webhook():
     return "OK", 200
 
 if __name__ == '__main__':
+    # Sync version badge on startup
+    subprocess.run(["python", "TOOLS/sync_version.py"])
+
     # Ensure output directory exists
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
-        
+
     app.run(host='0.0.0.0', port=5001)

@@ -1,909 +1,170 @@
-<#
-.SYNOPSIS
-    Automated Android APK Builder for WebView
-    
-.DESCRIPTION
-    This script downloads the necessary Android SDK Command Line Tools,
-    sets up a minimal Android project, and builds a debug APK.
-    
-    It automatically handles dependencies:
-    - Curl (for faster downloads)
-    - Java (OpenJDK 17)
-    - Android SDK & Build Tools
-    - Gradle
-    
-.NOTES
-    Author: Antigravity
-    Date: 2025-12-11
-#>
+param([switch]$NoCleanup)
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8
+$ErrorActionPreference = "Stop"; $ProgressPreference = 'SilentlyContinue'
 
-param (
-    [switch]$NoCleanup
-)
-
-# Set console encoding to UTF-8 for proper Unicode display
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
-$ErrorActionPreference = "Stop"
-$ProgressPreference = 'SilentlyContinue'
-
-# Configuration
 $SettingsPath = "$PSScriptRoot\..\settings.yaml"
-if (Test-Path $SettingsPath) {
-    $Settings = Get-Content $SettingsPath
-    $AppUrl = ($Settings -match "redirect_to_url").Split('"')[1]
-    $ApkFilename = ($Settings -match "apk_name").Split('"')[1]
-    $AppName = $ApkFilename.Replace(".apk", "")
-}
-else {
-    Write-Warning "settings.yaml not found! Using defaults."
-    $AppUrl = "https://crazywalk.weforks.org/"
-    $AppName = "CrazyWalk"
-    $ApkFilename = "CrazyWalk.apk"
-}
-$PackageName = "org.weforks.crazywalk"
-$SdkVersion = "33"
-$BuildToolsVersion = "33.0.1"
-
-
-
-# Directories
-$WorkDir = "$PSScriptRoot\..\android_build_env"
-$OutputDir = "$PSScriptRoot\..\FINISHED_HERE"
-$SdkDir = "$WorkDir\sdk"
-$ProjectDir = "$WorkDir\project"
-$JdkDir = "$WorkDir\jdk"
-$CurlDir = "$WorkDir\curl"
-
-# URLs
+if (Test-Path $SettingsPath) { $Settings = Get-Content $SettingsPath; $AppUrl = ($Settings -match "redirect_to_url").Split('"')[1]; $ApkFilename = ($Settings -match "apk_name").Split('"')[1]; $AppName = $ApkFilename.Replace(".apk", "") }
+else { $AppUrl = "https://crazywalk.weforks.org/"; $AppName = "CrazyWalk"; $ApkFilename = "CrazyWalk.apk" }
+$PackageName = "org.weforks.crazywalk"; $SdkVersion = "33"; $BuildToolsVersion = "33.0.1"
+$WorkDir = "$PSScriptRoot\..\android_build_env"; $OutputDir = "$PSScriptRoot\..\FINISHED_HERE"
+$SdkDir = "$WorkDir\sdk"; $ProjectDir = "$WorkDir\project"; $JdkDir = "$WorkDir\jdk"; $CurlDir = "$WorkDir\curl"
 $CmdLineToolsUrl = "https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip"
 $JdkUrl = "https://aka.ms/download-jdk/microsoft-jdk-17-windows-x64.zip"
 $CurlUrl = "https://curl.se/windows/dl-8.4.0_6/curl-8.4.0_6-win64-mingw.zip"
-
-# Load Jokes
 $JokesFile = "$PSScriptRoot\jokes.txt"
-if (Test-Path $JokesFile) {
-    $script:Jokes = Get-Content $JokesFile
-}
-else {
-    $script:Jokes = @("Loading...", "Processing...", "Please wait...")
-}
-$script:LastJokeTime = [DateTime]::MinValue
-$script:CurrentJoke = ""
-$script:CurrentPercent = 0
-$script:JokeIndex = 0
+$script:Jokes = if (Test-Path $JokesFile) { Get-Content $JokesFile } else { @("Loading...", "Processing...", "Please wait...") }
+$script:LastJokeTime = [DateTime]::MinValue; $script:CurrentJoke = ""; $script:CurrentPercent = 0
 
-# --- Helper Functions ---
-
-function Get-RandomJoke {
-    if ($script:Jokes.Count -gt 0) {
-        $j = $script:Jokes | Get-Random
-        return "$j... "
-    }
-    return "Processing.... "
+function Show-Progress { param($Percent, $Msg)
+  $script:CurrentPercent = $Percent; $Now = Get-Date
+  if ($Percent -ge 100) { $script:CurrentJoke = "APK Created Successfully!" }
+  elseif (($Now - $script:LastJokeTime).TotalSeconds -ge 4) { $script:CurrentJoke = ($script:Jokes | Get-Random) + "... " }
+  $script:LastJokeTime = $Now; $W = 50; $F = [Math]::Floor(($Percent/100)*$W); $E = $W - $F
+  $C = if ($Percent -ge 100) { "$([char]27)[92m" } else { "$([char]27)[96m" }
+  $D = "$([char]27)[90m"; $R = "$([char]27)[0m"; $M = $script:CurrentJoke
+  if ($M.Length -gt 40) { $M = $M.Substring(0,37) + "..." }
+  Write-Host -NoNewline "`r[$C$('#'*$F)$D$('-'*$E)$R] $Percent% $M       "
 }
 
-function Show-ProgressBar {
-    param($Percent, $Message)
-
-    $Width = 50
-    $FilledCount = [Math]::Floor(($Percent / 100) * $Width)
-    $EmptyCount = $Width - $FilledCount
-
-    # Use ASCII characters for maximum compatibility
-    $Filled = "#" * $FilledCount
-    $Empty = "-" * $EmptyCount
-
-    # ANSI Colors
-    $Cyan = "$([char]27)[96m" # Bright Cyan
-    $Green = "$([char]27)[92m" # Bright Green
-    $DarkGray = "$([char]27)[90m"
-    $Reset = "$([char]27)[0m"
-
-    if ($Percent -ge 100) {
-        $BarColor = $Green
-    }
-    else {
-        $BarColor = $Cyan
-    }
-
-    # Truncate message if too long for one line
-    $MaxMsgLen = 40
-    if ($Message.Length -gt $MaxMsgLen) { $Message = $Message.Substring(0, $MaxMsgLen - 3) + "..." }
-
-    # Use Carriage Return (`r) to overwrite line. Add padding spaces at the end to clear previous text.
-    Write-Host -NoNewline "`r[$BarColor$Filled$DarkGray$Empty$Reset] $Percent% $Message       "
+function Invoke-Cmd { param($File, $Args, $Dir = $PWD)
+  $p = New-Object System.Diagnostics.Process
+  $p.StartInfo = @{ FileName=$File; Arguments=$Args; RedirectStandardOutput=$true; RedirectStandardError=$true; UseShellExecute=$false; CreateNoWindow=$true; WorkingDirectory=$Dir }
+  $p.Start() | Out-Null
+  while (!$p.HasExited) { $Now = Get-Date; if (($Now - $script:LastJokeTime).TotalSeconds -ge 4 -and $script:CurrentPercent -lt 100) { $script:CurrentJoke = ($script:Jokes | Get-Random) + "... "; $script:LastJokeTime = $Now; Show-Progress $script:CurrentPercent "" }; Start-Sleep -Milliseconds 100 }
+  $out = $p.StandardOutput.ReadToEnd() + "`n" + $p.StandardError.ReadToEnd(); $p.WaitForExit()
+  @{ ExitCode = $p.ExitCode; Output = $out }
 }
 
-function Update-Ui {
-    if ($script:CurrentPercent -ge 100) { return }
-    
-    $Now = Get-Date
-    if (($Now - $script:LastJokeTime).TotalSeconds -ge 4) {
-        $script:CurrentJoke = Get-RandomJoke
-        $script:LastJokeTime = $Now
-        Show-ProgressBar $script:CurrentPercent $script:CurrentJoke
-    }
-}
+function Stop-Procs { $AdbPath = "$PSScriptRoot\android_build_env\sdk\platform-tools\adb.exe"; if (Test-Path $AdbPath) { & $AdbPath kill-server 2>$null }
+  Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -like "*android_build_env*" -or $_.Name -eq "adb.exe" } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -EA SilentlyContinue } }
 
-function Show-Progress {
-    param($Percent, $Message_Ignored)
-    $script:CurrentPercent = $Percent
-    
-    if ($Percent -ge 100) {
-        $script:CurrentJoke = "APK Created Successfully!"
-    }
-    else {
-        # Force update immediately on step change
-        $script:CurrentJoke = Get-RandomJoke
-    }
-    
-    $script:LastJokeTime = Get-Date
-    Show-ProgressBar $script:CurrentPercent $script:CurrentJoke
-}
+function Remove-Safe { param($Path); if (!(Test-Path $Path)) { return }
+  for ($i=0; $i -lt 10; $i++) { try { Remove-Item $Path -Recurse -Force -EA Stop; return } catch { Start-Sleep -Milliseconds 500 } }
+  cmd /c "rmdir /s /q `"$Path`"" }
 
-function Invoke-CommandWithProgress {
-    param($FilePath, $ArgumentList, $WorkingDirectory = $PWD)
-    
-    $pinfo = New-Object System.Diagnostics.ProcessStartInfo
-    $pinfo.FileName = $FilePath
-    $pinfo.Arguments = $ArgumentList
-    $pinfo.RedirectStandardOutput = $true
-    $pinfo.RedirectStandardError = $true
-    $pinfo.UseShellExecute = $false
-    $pinfo.CreateNoWindow = $true
-    $pinfo.WorkingDirectory = $WorkingDirectory
-    
-    $p = New-Object System.Diagnostics.Process
-    $p.StartInfo = $pinfo
-    $p.Start() | Out-Null
-    
-    while (-not $p.HasExited) {
-        Update-Ui
-        Start-Sleep -Milliseconds 100
-    }
-    
-    $stdout = $p.StandardOutput.ReadToEnd()
-    $stderr = $p.StandardError.ReadToEnd()
-    $p.WaitForExit()
-    
-    return @{
-        ExitCode = $p.ExitCode
-        Output   = $stdout + "`n" + $stderr
-    }
-}
+function Clear-Env { if ($PSScriptRoot) { Set-Location $PSScriptRoot }; Stop-Procs; Start-Sleep -Seconds 2; Remove-Safe $WorkDir }
 
-function Write-Status {
-    param($Message)
-    # Deprecated in favor of Show-Progress
-}
+function Wait-Lock { param($Path, $Timeout=30); $sw = [System.Diagnostics.Stopwatch]::StartNew()
+  while ($sw.Elapsed.TotalSeconds -lt $Timeout) { try { $s = [System.IO.File]::Open($Path,'Open','Read','None'); if ($s) { $s.Close(); return } } catch { Start-Sleep -Milliseconds 1000 } } }
 
-function Stop-LingeringProcesses {
-    Write-Status "Checking for lingering processes..."
-    
-    # Try to find adb in the build env to kill server gracefully
-    $AdbPath = "$PSScriptRoot\android_build_env\sdk\platform-tools\adb.exe"
-    if (Test-Path $AdbPath) {
-        & $AdbPath kill-server 2>$null
-    }
+function Get-File { param($Uri, $Out)
+  if (Get-Command "curl.exe" -EA SilentlyContinue) { $r = Invoke-Cmd "curl.exe" "-L -o `"$Out`" `"$Uri`" -sS"; if ($r.ExitCode -ne 0) { throw "Download failed" } }
+  else { Invoke-WebRequest -Uri $Uri -OutFile $Out -UseBasicParsing }
+  Wait-Lock $Out; Unblock-File -Path $Out -EA SilentlyContinue }
 
-    $Processes = Get-CimInstance Win32_Process | Where-Object { 
-        $_.ExecutablePath -like "*android_build_env*" -or $_.Name -eq "adb.exe" -or $_.Name -eq "java.exe"
-    }
-    foreach ($Proc in $Processes) {
-        # Double check path for java/adb to avoid killing system-wide things if not careful
-        # But user wants "delete everything", so aggressive is better.
-        # However, killing system java might be bad if user has other things.
-        # Let's stick to the path filter OR explicit adb.exe (adb is usually safe to kill).
-        if ($Proc.Name -eq "adb.exe" -or $Proc.ExecutablePath -like "*android_build_env*") {
-            Stop-Process -Id $Proc.ProcessId -Force -ErrorAction SilentlyContinue
-        }
-    }
-}
+function Expand-Zip { param($Path, $Dest, [bool]$Clean = $true)
+  if ($Clean -and (Test-Path $Dest)) { Remove-Safe $Dest }; if (!(Test-Path $Dest)) { md $Dest -Force | Out-Null }
+  if (Get-Command "tar.exe" -EA SilentlyContinue) { try { $r = Invoke-Cmd "tar.exe" "-xf `"$(Resolve-Path $Path)`" -C `"$(Resolve-Path $Dest)`""; if ($r.ExitCode -eq 0) { return } } catch {} }
+  Expand-Archive -Path $Path -DestinationPath $Dest -Force }
 
-function Remove-ItemSafe {
-    param($Path)
-    if (-not (Test-Path $Path)) { return }
-    
-    for ($i = 0; $i -lt 10; $i++) {
-        try {
-            Remove-Item $Path -Recurse -Force -ErrorAction Stop
-            return
-        }
-        catch {
-            Start-Sleep -Milliseconds 500
-        }
-    }
-    
-    # Fallback to cmd rmdir
-    Write-Warning "PowerShell remove failed, trying cmd rmdir..."
-    cmd /c "rmdir /s /q `"$Path`""
-    
-    if (Test-Path $Path) {
-        Write-Warning "Unable to remove $Path (File locked?)"
-    }
-}
+function Init-Curl { if (Get-Command "curl.exe" -EA SilentlyContinue) { return }
+  Get-File $CurlUrl "$WorkDir\curl.zip"; Expand-Zip "$WorkDir\curl.zip" "$WorkDir\curl_temp"; Start-Sleep 1
+  $bin = Get-ChildItem "$WorkDir\curl_temp" -Recurse -Directory | Where-Object { $_.Name -eq "bin" } | Select-Object -First 1
+  if ($bin) { if (Test-Path $CurlDir) { Remove-Safe $CurlDir }; Copy-Item $bin.FullName $CurlDir -Recurse -Force; $env:PATH = "$CurlDir;$env:PATH" }
+  Remove-Safe "$WorkDir\curl_temp"; Remove-Safe "$WorkDir\curl.zip" }
 
+function Init-Java { try { $null = java -version 2>&1; if ($LASTEXITCODE -eq 0) { return } } catch {}
+  Get-File $JdkUrl "$WorkDir\jdk.zip"; Expand-Zip "$WorkDir\jdk.zip" "$WorkDir\jdk_temp"; Start-Sleep 1
+  $sub = Get-ChildItem "$WorkDir\jdk_temp" | Select-Object -First 1; if (Test-Path $JdkDir) { Remove-Safe $JdkDir }
+  Copy-Item $sub.FullName $JdkDir -Recurse -Force; Remove-Safe "$WorkDir\jdk_temp"; Remove-Safe "$WorkDir\jdk.zip"
+  $env:JAVA_HOME = $JdkDir; $env:PATH = "$JdkDir\bin;$env:PATH" }
 
+function Init-Sdk { if (!(Test-Path $SdkDir)) { md $SdkDir -Force | Out-Null }
+  $CmdDir = "$SdkDir\cmdline-tools\latest"; $SdkMgr = "$CmdDir\bin\sdkmanager.bat"
+  if (!(Test-Path $SdkMgr)) { Get-File $CmdLineToolsUrl "$WorkDir\cmd.zip"; Expand-Zip "$WorkDir\cmd.zip" "$SdkDir\cmd_temp"; Start-Sleep 1
+    $bat = Get-ChildItem "$SdkDir\cmd_temp" -Filter "sdkmanager.bat" -Recurse | Select-Object -First 1; if (!$bat) { throw "sdkmanager.bat not found" }
+    $root = $bat.Directory.Parent.FullName; if (!(Test-Path "$SdkDir\cmdline-tools")) { md "$SdkDir\cmdline-tools" -Force | Out-Null }
+    Copy-Item $root $CmdDir -Recurse -Force; Remove-Safe "$SdkDir\cmd_temp"; Remove-Safe "$WorkDir\cmd.zip" }
+  $lic = "$SdkDir\licenses"; if (!(Test-Path $lic)) { md $lic -Force | Out-Null }
+  Set-Content "$lic\android-sdk-license" "24333f8a63b6825ea9c5514f83c2829b004d1fee`n84831b9409646a918e30573bab4c9c91346d8abd" -Encoding Ascii
+  1..20 | ForEach-Object { "y" } | & $SdkMgr --sdk_root="$SdkDir" "platform-tools" "platforms;android-$SdkVersion" "build-tools;$BuildToolsVersion" | Out-Null }
 
-function Clear-BuildEnvironment {
-    Write-Status "Cleaning up build environment..."
-    
-    # Ensure we are not inside the directory we are about to delete
-    if ($PSScriptRoot) { Set-Location $PSScriptRoot }
-    
-    Stop-LingeringProcesses
-    Start-Sleep -Seconds 2
-    Remove-ItemSafe $WorkDir
-}
-
-function Wait-FileLock {
-    param($Path, $TimeoutSeconds = 30)
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
-        try {
-            # Try to open the file with exclusive access to check if it's locked
-            $stream = [System.IO.File]::Open($Path, 'Open', 'Read', 'None')
-            if ($stream) {
-                $stream.Close()
-                return
-            }
-        }
-        catch {
-            Start-Sleep -Milliseconds 1000
-        }
-    }
-    Write-Warning "File $Path appears to be locked after $TimeoutSeconds seconds."
-}
-
-function Invoke-Download {
-    param($Uri, $OutFile)
-    
-    # Try using curl (system or portable)
-    if (Get-Command "curl.exe" -ErrorAction SilentlyContinue) {
-        $Result = Invoke-CommandWithProgress "curl.exe" "-L -o `"$OutFile`" `"$Uri`" -sS"
-        if ($Result.ExitCode -ne 0) { 
-            throw "Download failed with curl (Exit code: $($Result.ExitCode)). Output:`n$($Result.Output)" 
-        }
-    }
-    else {
-        # Fallback to PowerShell
-        try {
-            $ProgressPreference = 'SilentlyContinue'
-            Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing
-        }
-        catch {
-            throw "Download failed: $_"
-        }
-    }
-
-    Wait-FileLock $OutFile
-    Unblock-File -Path $OutFile -ErrorAction SilentlyContinue
-}
-
-function Invoke-Extract {
-    param($Path, $Destination, [bool]$CleanDestination = $true)
-    
-    if ($CleanDestination -and (Test-Path $Destination)) {
-        Remove-ItemSafe $Destination
-    }
-    if (-not (Test-Path $Destination)) {
-        New-Item -ItemType Directory -Path $Destination -Force | Out-Null
-    }
-
-    # Try tar (much faster on Windows 10/11)
-    if (Get-Command "tar.exe" -ErrorAction SilentlyContinue) {
-        try {
-            $AbsPath = (Resolve-Path $Path).Path
-            $AbsDest = (Resolve-Path $Destination).Path
-            
-            $Result = Invoke-CommandWithProgress "tar.exe" "-xf `"$AbsPath`" -C `"$AbsDest`""
-            
-            if ($Result.ExitCode -ne 0) { throw "Tar extraction failed." }
-            return
-        }
-        catch {
-            # Fallback
-        }
-    }
-
-    # Fallback
-    Expand-Archive -Path $Path -DestinationPath $Destination -Force
-}
-
-function Initialize-Curl {
-    if (Get-Command "curl.exe" -ErrorAction SilentlyContinue) {
-        return
-    }
-
-    $CurlZip = "$WorkDir\curl.zip"
-    Invoke-Download -Uri $CurlUrl -OutFile $CurlZip
-    
-    Invoke-Extract -Path $CurlZip -Destination "$WorkDir\curl_temp"
-    Start-Sleep -Seconds 1
-    
-    $BinDir = Get-ChildItem -Path "$WorkDir\curl_temp" -Recurse -Directory | Where-Object { $_.Name -eq "bin" } | Select-Object -First 1
-    if ($BinDir) {
-        if (Test-Path $CurlDir) { Remove-ItemSafe $CurlDir }
-        Copy-Item -Path $BinDir.FullName -Destination $CurlDir -Recurse -Force
-        $env:PATH = "$CurlDir;$env:PATH"
-    }
-    Remove-ItemSafe "$WorkDir\curl_temp"
-    Remove-ItemSafe $CurlZip
-}
-
-function Initialize-Java {
-    $javaAvailable = $false
-    try {
-        $null = java -version 2>&1
-        if ($LASTEXITCODE -eq 0) { $javaAvailable = $true }
-    }
-    catch {}
-
-    if ($javaAvailable) {
-        # System Java found
-        return
-    }
-
-    Write-Status "Java not found. Installing Portable OpenJDK 17..."
-    $JdkZip = "$WorkDir\jdk.zip"
-    Invoke-Download -Uri $JdkUrl -OutFile $JdkZip
-    
-    Write-Status "Extracting Java..."
-    Invoke-Extract -Path $JdkZip -Destination "$WorkDir\jdk_temp"
-    Start-Sleep -Seconds 1
-    
-    $SubDir = Get-ChildItem "$WorkDir\jdk_temp" | Select-Object -First 1
-    if (Test-Path $JdkDir) { Remove-ItemSafe $JdkDir }
-    Copy-Item -Path $SubDir.FullName -Destination $JdkDir -Recurse -Force
-    
-    Remove-ItemSafe "$WorkDir\jdk_temp"
-    Remove-ItemSafe $JdkZip
-
-    $env:JAVA_HOME = $JdkDir
-    $env:PATH = "$JdkDir\bin;$env:PATH"
-}
-
-function Initialize-Sdk {
-    if (-not (Test-Path $SdkDir)) { New-Item -ItemType Directory -Path $SdkDir -Force | Out-Null }
-
-    $CmdLineToolsFinal = "$SdkDir\cmdline-tools\latest"
-    $SdkManager = "$CmdLineToolsFinal\bin\sdkmanager.bat"
-
-    if (-not (Test-Path $SdkManager)) {
-        $ZipPath = "$WorkDir\cmdline-tools.zip"
-        Invoke-Download -Uri $CmdLineToolsUrl -OutFile $ZipPath
-        
-        $TempExtract = "$SdkDir\cmdline-tools_temp"
-        Invoke-Extract -Path $ZipPath -Destination $TempExtract
-        Start-Sleep -Seconds 1
-        
-        $SdkBat = Get-ChildItem -Path $TempExtract -Filter "sdkmanager.bat" -Recurse | Select-Object -First 1
-        if ($null -eq $SdkBat) { throw "Could not find sdkmanager.bat" }
-
-        $ToolRoot = $SdkBat.Directory.Parent.FullName
-        $ParentDir = "$SdkDir\cmdline-tools"
-        if (-not (Test-Path $ParentDir)) { New-Item -ItemType Directory -Path $ParentDir -Force | Out-Null }
-        
-        Copy-Item -Path $ToolRoot -Destination $CmdLineToolsFinal -Recurse -Force
-        
-        # Verify
-        if (-not (Test-Path "$CmdLineToolsFinal\bin\sdkmanager.bat")) {
-            Write-Error "CRITICAL: sdkmanager.bat not found after copy!"
-            throw "SDK Copy Failed"
-        }
-
-        Remove-ItemSafe $TempExtract
-        Remove-ItemSafe $ZipPath
-    }
-    
-    $LicensesDir = "$SdkDir\licenses"
-    if (-not (Test-Path $LicensesDir)) { New-Item -ItemType Directory -Path $LicensesDir -Force | Out-Null }
-    $AndroidSdkLicense = "24333f8a63b6825ea9c5514f83c2829b004d1fee`n84831b9409646a918e30573bab4c9c91346d8abd"
-    Set-Content -Path "$LicensesDir\android-sdk-license" -Value $AndroidSdkLicense -Encoding Ascii
-    
-    Set-Content -Path "$LicensesDir\android-sdk-license" -Value $AndroidSdkLicense -Encoding Ascii
-    
-    $YesInput = 1..20 | ForEach-Object { "y" }
-    $YesInput | & "$SdkManager" --sdk_root="$SdkDir" "platform-tools" "platforms;android-$SdkVersion" "build-tools;$BuildToolsVersion" | Out-Null
-}
-
-function New-AndroidProject {
-    if (Test-Path $ProjectDir) { Remove-ItemSafe $ProjectDir }
-    New-Item -ItemType Directory -Path "$ProjectDir\app\src\main\java\org\weforks\crazywalk" -Force | Out-Null
-    New-Item -ItemType Directory -Path "$ProjectDir\app\src\main\res\values" -Force | Out-Null
-    New-Item -ItemType Directory -Path "$ProjectDir\app\src\main\res\layout" -Force | Out-Null
-
-    # 1. settings.gradle
-    Set-Content -Path "$ProjectDir\settings.gradle" -Value @"
-pluginManagement {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
-}
-dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
-rootProject.name = "$AppName"
-include ':app'
+function New-Project { if (Test-Path $ProjectDir) { Remove-Safe $ProjectDir }
+  md "$ProjectDir\app\src\main\java\org\weforks\crazywalk" -Force | Out-Null
+  md "$ProjectDir\app\src\main\res\values","$ProjectDir\app\src\main\res\layout","$ProjectDir\app\src\main\res\xml","$ProjectDir\app\src\main\res\mipmap-anydpi-v26","$ProjectDir\app\src\main\assets" -Force | Out-Null
+  Set-Content "$ProjectDir\settings.gradle" "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }`ndependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }`nrootProject.name = `"$AppName`"`ninclude ':app'"
+  Set-Content "$ProjectDir\gradle.properties" "android.useAndroidX=true`nandroid.enableJetifier=true"
+  Set-Content "$ProjectDir\build.gradle" "plugins { id 'com.android.application' version '8.1.0' apply false }"
+  Set-Content "$ProjectDir\app\build.gradle" @"
+plugins { id 'com.android.application' }
+android { namespace '$PackageName'; compileSdk $SdkVersion
+  defaultConfig { applicationId '$PackageName'; minSdk 24; targetSdk $SdkVersion; versionCode 1; versionName "1.0" }
+  buildTypes { release { minifyEnabled false; proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' } }
+  compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 } }
+dependencies { implementation 'androidx.appcompat:appcompat:1.6.1'; implementation 'com.google.android.material:material:1.9.0' }
 "@
-
-    # 1.5 gradle.properties
-    Set-Content -Path "$ProjectDir\gradle.properties" -Value @"
-android.useAndroidX=true
-android.enableJetifier=true
+  Set-Content "$ProjectDir\app\src\main\AndroidManifest.xml" @"
+<?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+<uses-permission android:name="android.permission.INTERNET"/><uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+<application android:allowBackup="true" android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml/network_security_config" android:dataExtractionRules="@xml/data_extraction_rules" android:fullBackupContent="@xml/backup_rules" android:icon="@mipmap/ic_launcher" android:label="$AppName" android:roundIcon="@mipmap/ic_launcher_round" android:supportsRtl="true" android:theme="@style/Theme.CrazyWalk" tools:targetApi="31">
+<activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden" android:theme="@style/Theme.CrazyWalk"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+</application></manifest>
 "@
-
-    # 2. build.gradle (Root)
-    Set-Content -Path "$ProjectDir\build.gradle" -Value @"
-plugins {
-    id 'com.android.application' version '8.1.0' apply false
-}
-"@
-
-    # 3. build.gradle (App)
-    Set-Content -Path "$ProjectDir\app\build.gradle" -Value @"
-plugins {
-    id 'com.android.application'
-}
-
-android {
-    namespace '$PackageName'
-    compileSdk $SdkVersion
-
-    defaultConfig {
-        applicationId '$PackageName'
-        minSdk 24
-        targetSdk $SdkVersion
-        versionCode 1
-        versionName "1.0"
-    }
-
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-}
-
-dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.9.0'
-}
-"@
-
-    # 4. AndroidManifest.xml
-    Set-Content -Path "$ProjectDir\app\src\main\AndroidManifest.xml" -Value @"
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-
-    <application
-        android:allowBackup="true"
-        android:usesCleartextTraffic="true"
-        android:networkSecurityConfig="@xml/network_security_config"
-        android:dataExtractionRules="@xml/data_extraction_rules"
-        android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
-        android:label="$AppName"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.CrazyWalk"
-        tools:targetApi="31">
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:configChanges="orientation|screenSize|keyboardHidden"
-            android:theme="@style/Theme.CrazyWalk">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-    </application>
-
-</manifest>
-"@
-
-    # 5. MainActivity.java
-    New-Item -ItemType Directory -Path "$ProjectDir\app\src\main\assets" -Force | Out-Null
-    Set-Content -Path "$ProjectDir\app\src\main\assets\config.properties" -Value "url=$AppUrl"
-
-    Set-Content -Path "$ProjectDir\app\src\main\java\org\weforks\crazywalk\MainActivity.java" -Value @"
+  Set-Content "$ProjectDir\app\src\main\assets\config.properties" "url=$AppUrl"
+  Set-Content "$ProjectDir\app\src\main\java\org\weforks\crazywalk\MainActivity.java" @"
 package $PackageName;
-
-import android.app.Activity;
-import android.app.AlertDialog;
-import android.graphics.Color;
-import android.net.http.SslError;
-import android.os.Bundle;
-import android.view.Gravity;
-import android.view.View;
-import android.webkit.SslErrorHandler;
-import android.webkit.WebResourceError;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
-import android.widget.Button;
-import android.widget.FrameLayout;
-import android.widget.LinearLayout;
-import android.widget.ProgressBar;
-import android.widget.TextView;
-import java.io.InputStream;
-import java.util.Properties;
-
+import android.app.Activity; import android.app.AlertDialog; import android.graphics.Color; import android.net.http.SslError;
+import android.os.Bundle; import android.view.Gravity; import android.view.View; import android.webkit.*;
+import android.widget.*; import java.io.InputStream; import java.util.Properties;
 public class MainActivity extends Activity {
-    private WebView myWebView;
-    private LinearLayout errorLayout;
-    private ProgressBar progressBar;
-    private FrameLayout rootLayout;
-    private String currentUrl;
-
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-
-        // Create root layout
-        rootLayout = new FrameLayout(this);
-        rootLayout.setBackgroundColor(Color.WHITE);
-
-        // Create WebView
-        myWebView = new WebView(this);
-        rootLayout.addView(myWebView, new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT));
-
-        // Create Progress Bar
-        progressBar = new ProgressBar(this);
-        FrameLayout.LayoutParams progressParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.WRAP_CONTENT,
-            FrameLayout.LayoutParams.WRAP_CONTENT);
-        progressParams.gravity = Gravity.CENTER;
-        rootLayout.addView(progressBar, progressParams);
-
-        // Create Error Layout
-        createErrorLayout();
-
-        setContentView(rootLayout);
-
-        // Configure WebView Settings
-        WebSettings webSettings = myWebView.getSettings();
-        webSettings.setJavaScriptEnabled(true);
-        webSettings.setDomStorageEnabled(true);
-        webSettings.setDatabaseEnabled(true);
-        webSettings.setCacheMode(WebSettings.LOAD_NO_CACHE);
-        webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-        webSettings.setAllowFileAccess(true);
-        webSettings.setAllowContentAccess(true);
-        webSettings.setLoadsImagesAutomatically(true);
-        webSettings.setJavaScriptCanOpenWindowsAutomatically(true);
-        webSettings.setSupportMultipleWindows(false);
-        webSettings.setMediaPlaybackRequiresUserGesture(false);
-
-        // Clear cache on every start
-        myWebView.clearCache(true);
-        myWebView.clearHistory();
-
-        // Set Custom WebViewClient with error handling
-        myWebView.setWebViewClient(new WebViewClient() {
-            @Override
-            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-                super.onPageStarted(view, url, favicon);
-                progressBar.setVisibility(View.VISIBLE);
-                errorLayout.setVisibility(View.GONE);
-                myWebView.setVisibility(View.VISIBLE);
-            }
-
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-                progressBar.setVisibility(View.GONE);
-            }
-
-            @Override
-            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                super.onReceivedError(view, request, error);
-                if (request.isForMainFrame()) {
-                    showError("Connection Error", "Unable to load the page. Please check your internet connection.");
-                }
-            }
-
-            @Override
-            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-                new AlertDialog.Builder(MainActivity.this)
-                    .setTitle("SSL Certificate Warning")
-                    .setMessage("There is a problem with the security certificate. Do you want to continue?")
-                    .setPositiveButton("Continue", (dialog, which) -> handler.proceed())
-                    .setNegativeButton("Cancel", (dialog, which) -> {
-                        handler.cancel();
-                        showError("Security Error", "SSL certificate validation failed.");
-                    })
-                    .setCancelable(false)
-                    .show();
-            }
-
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                view.loadUrl(request.getUrl().toString());
-                return true;
-            }
-        });
-
-        // Load URL from config
-        currentUrl = "$AppUrl";
-        try {
-            InputStream inputStream = getAssets().open("config.properties");
-            Properties properties = new Properties();
-            properties.load(inputStream);
-            currentUrl = properties.getProperty("url", "$AppUrl");
-            inputStream.close();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        loadUrl();
-    }
-
-    private void createErrorLayout() {
-        errorLayout = new LinearLayout(this);
-        errorLayout.setOrientation(LinearLayout.VERTICAL);
-        errorLayout.setGravity(Gravity.CENTER);
-        errorLayout.setBackgroundColor(Color.WHITE);
-        errorLayout.setVisibility(View.GONE);
-
-        TextView errorIcon = new TextView(this);
-        errorIcon.setText("\u26A0");
-        errorIcon.setTextSize(64);
-        errorIcon.setGravity(Gravity.CENTER);
-        errorLayout.addView(errorIcon);
-
-        TextView errorTitle = new TextView(this);
-        errorTitle.setId(android.R.id.title);
-        errorTitle.setText("Error");
-        errorTitle.setTextSize(24);
-        errorTitle.setTextColor(Color.parseColor("#333333"));
-        errorTitle.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT);
-        titleParams.setMargins(0, 32, 0, 16);
-        errorLayout.addView(errorTitle, titleParams);
-
-        TextView errorMessage = new TextView(this);
-        errorMessage.setId(android.R.id.message);
-        errorMessage.setText("Something went wrong");
-        errorMessage.setTextSize(16);
-        errorMessage.setTextColor(Color.parseColor("#666666"));
-        errorMessage.setGravity(Gravity.CENTER);
-        errorMessage.setPadding(48, 0, 48, 0);
-        LinearLayout.LayoutParams msgParams = new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT);
-        msgParams.setMargins(0, 0, 0, 32);
-        errorLayout.addView(errorMessage, msgParams);
-
-        Button retryButton = new Button(this);
-        retryButton.setText("Retry");
-        retryButton.setTextColor(Color.WHITE);
-        retryButton.setBackgroundColor(Color.parseColor("#2196F3"));
-        retryButton.setPadding(64, 24, 64, 24);
-        retryButton.setOnClickListener(v -> {
-            errorLayout.setVisibility(View.GONE);
-            myWebView.setVisibility(View.VISIBLE);
-            loadUrl();
-        });
-        errorLayout.addView(retryButton);
-
-        FrameLayout.LayoutParams errorParams = new FrameLayout.LayoutParams(
-            FrameLayout.LayoutParams.MATCH_PARENT,
-            FrameLayout.LayoutParams.MATCH_PARENT);
-        rootLayout.addView(errorLayout, errorParams);
-    }
-
-    private void showError(String title, String message) {
-        progressBar.setVisibility(View.GONE);
-        myWebView.setVisibility(View.GONE);
-
-        TextView errorTitle = errorLayout.findViewById(android.R.id.title);
-        TextView errorMessage = errorLayout.findViewById(android.R.id.message);
-
-        if (errorTitle != null) errorTitle.setText(title);
-        if (errorMessage != null) errorMessage.setText(message);
-
-        errorLayout.setVisibility(View.VISIBLE);
-    }
-
-    private void loadUrl() {
-        if (currentUrl != null && !currentUrl.isEmpty()) {
-            myWebView.clearCache(true);
-            myWebView.loadUrl(currentUrl);
-        }
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (errorLayout.getVisibility() == View.VISIBLE) {
-            finish();
-        } else if (myWebView.canGoBack()) {
-            myWebView.goBack();
-        } else {
-            super.onBackPressed();
-        }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        myWebView.onResume();
-    }
-
-    @Override
-    protected void onPause() {
-        myWebView.onPause();
-        super.onPause();
-    }
-
-    @Override
-    protected void onDestroy() {
-        if (myWebView != null) {
-            myWebView.destroy();
-        }
-        super.onDestroy();
-    }
+  private WebView myWebView; private LinearLayout errorLayout; private ProgressBar progressBar; private FrameLayout rootLayout; private String currentUrl;
+  @Override protected void onCreate(Bundle savedInstanceState) { super.onCreate(savedInstanceState);
+    rootLayout = new FrameLayout(this); rootLayout.setBackgroundColor(Color.WHITE);
+    myWebView = new WebView(this); rootLayout.addView(myWebView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
+    progressBar = new ProgressBar(this); FrameLayout.LayoutParams pp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT); pp.gravity = Gravity.CENTER; rootLayout.addView(progressBar, pp);
+    createErrorLayout(); setContentView(rootLayout);
+    WebSettings ws = myWebView.getSettings(); ws.setJavaScriptEnabled(true); ws.setDomStorageEnabled(true); ws.setDatabaseEnabled(true);
+    ws.setCacheMode(WebSettings.LOAD_NO_CACHE); ws.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+    ws.setAllowFileAccess(true); ws.setAllowContentAccess(true); ws.setLoadsImagesAutomatically(true);
+    ws.setJavaScriptCanOpenWindowsAutomatically(true); ws.setSupportMultipleWindows(false); ws.setMediaPlaybackRequiresUserGesture(false);
+    myWebView.clearCache(true); myWebView.clearHistory();
+    myWebView.setWebViewClient(new WebViewClient() {
+      @Override public void onPageStarted(WebView v, String u, android.graphics.Bitmap f) { super.onPageStarted(v,u,f); progressBar.setVisibility(View.VISIBLE); errorLayout.setVisibility(View.GONE); myWebView.setVisibility(View.VISIBLE); }
+      @Override public void onPageFinished(WebView v, String u) { super.onPageFinished(v,u); progressBar.setVisibility(View.GONE); }
+      @Override public void onReceivedError(WebView v, WebResourceRequest r, WebResourceError e) { super.onReceivedError(v,r,e); if (r.isForMainFrame()) showError("Connection Error", "Unable to load the page."); }
+      @Override public void onReceivedSslError(WebView v, SslErrorHandler h, SslError e) { new AlertDialog.Builder(MainActivity.this).setTitle("SSL Warning").setMessage("Certificate problem. Continue?").setPositiveButton("Continue", (d,w)->h.proceed()).setNegativeButton("Cancel", (d,w)->{h.cancel();showError("Security Error","SSL failed.");}).setCancelable(false).show(); }
+      @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) { v.loadUrl(r.getUrl().toString()); return true; }
+    });
+    currentUrl = "$AppUrl"; try { InputStream is = getAssets().open("config.properties"); Properties p = new Properties(); p.load(is); currentUrl = p.getProperty("url", "$AppUrl"); is.close(); } catch (Exception e) {}
+    loadUrl(); }
+  private void createErrorLayout() { errorLayout = new LinearLayout(this); errorLayout.setOrientation(LinearLayout.VERTICAL); errorLayout.setGravity(Gravity.CENTER); errorLayout.setBackgroundColor(Color.WHITE); errorLayout.setVisibility(View.GONE);
+    TextView icon = new TextView(this); icon.setText("\u26A0"); icon.setTextSize(64); icon.setGravity(Gravity.CENTER); errorLayout.addView(icon);
+    TextView title = new TextView(this); title.setId(android.R.id.title); title.setText("Error"); title.setTextSize(24); title.setTextColor(Color.parseColor("#333333")); title.setGravity(Gravity.CENTER);
+    LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT); tp.setMargins(0,32,0,16); errorLayout.addView(title, tp);
+    TextView msg = new TextView(this); msg.setId(android.R.id.message); msg.setText("Something went wrong"); msg.setTextSize(16); msg.setTextColor(Color.parseColor("#666666")); msg.setGravity(Gravity.CENTER); msg.setPadding(48,0,48,0);
+    LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT); mp.setMargins(0,0,0,32); errorLayout.addView(msg, mp);
+    Button btn = new Button(this); btn.setText("Retry"); btn.setTextColor(Color.WHITE); btn.setBackgroundColor(Color.parseColor("#2196F3")); btn.setPadding(64,24,64,24); btn.setOnClickListener(v->{ errorLayout.setVisibility(View.GONE); myWebView.setVisibility(View.VISIBLE); loadUrl(); }); errorLayout.addView(btn);
+    rootLayout.addView(errorLayout, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)); }
+  private void showError(String t, String m) { progressBar.setVisibility(View.GONE); myWebView.setVisibility(View.GONE); TextView et = errorLayout.findViewById(android.R.id.title); TextView em = errorLayout.findViewById(android.R.id.message); if (et!=null) et.setText(t); if (em!=null) em.setText(m); errorLayout.setVisibility(View.VISIBLE); }
+  private void loadUrl() { if (currentUrl != null && !currentUrl.isEmpty()) { myWebView.clearCache(true); myWebView.loadUrl(currentUrl); } }
+  @Override public void onBackPressed() { if (errorLayout.getVisibility() == View.VISIBLE) finish(); else if (myWebView.canGoBack()) myWebView.goBack(); else super.onBackPressed(); }
+  @Override protected void onResume() { super.onResume(); myWebView.onResume(); }
+  @Override protected void onPause() { myWebView.onPause(); super.onPause(); }
+  @Override protected void onDestroy() { if (myWebView != null) myWebView.destroy(); super.onDestroy(); }
 }
 "@
+  Set-Content "$ProjectDir\app\src\main\res\values\styles.xml" '<?xml version="1.0" encoding="utf-8"?><resources><style name="Theme.CrazyWalk" parent="android:Theme.Material.Light.NoActionBar"><item name="android:statusBarColor">@android:color/black</item></style></resources>'
+  Set-Content "$ProjectDir\app\src\main\res\xml\data_extraction_rules.xml" '<?xml version="1.0" encoding="utf-8"?><data-extraction-rules><cloud-backup><include domain="root"/></cloud-backup><device-transfer><include domain="root"/></device-transfer></data-extraction-rules>'
+  Set-Content "$ProjectDir\app\src\main\res\xml\backup_rules.xml" '<?xml version="1.0" encoding="utf-8"?><full-backup-content><include domain="root"/></full-backup-content>'
+  Set-Content "$ProjectDir\app\src\main\res\xml\network_security_config.xml" '<?xml version="1.0" encoding="utf-8"?><network-security-config><base-config cleartextTrafficPermitted="true"><trust-anchors><certificates src="system"/><certificates src="user"/></trust-anchors></base-config></network-security-config>'
+  Set-Content "$ProjectDir\app\src\main\res\mipmap-anydpi-v26\ic_launcher.xml" '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android"><background android:drawable="@android:color/holo_blue_light"/><foreground><inset android:inset="20dp"><shape android:shape="oval"><solid android:color="@android:color/white"/></shape></inset></foreground></adaptive-icon>'
+  Copy-Item "$ProjectDir\app\src\main\res\mipmap-anydpi-v26\ic_launcher.xml" "$ProjectDir\app\src\main\res\mipmap-anydpi-v26\ic_launcher_round.xml" }
 
-    # 6. Styles (No Action Bar)
-    Set-Content -Path "$ProjectDir\app\src\main\res\values\styles.xml" -Value @"
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <style name="Theme.CrazyWalk" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">@android:color/black</item>
-    </style>
-</resources>
-"@
+function Build-Apk { Set-Location $ProjectDir; Set-Content "local.properties" "sdk.dir=$($SdkDir -replace '\\','\\')"
+  $GradleVer = "8.3"; $GradleDir = "$WorkDir\gradle-$GradleVer"
+  if (!(Test-Path "$GradleDir\bin\gradle.bat")) { Get-File "https://services.gradle.org/distributions/gradle-$GradleVer-bin.zip" "$WorkDir\gradle.zip"; Expand-Zip "$WorkDir\gradle.zip" $WorkDir -Clean:$false; Remove-Safe "$WorkDir\gradle.zip" }
+  $r = Invoke-Cmd "$GradleDir\bin\gradle.bat" "assembleDebug" $ProjectDir
+  if ($r.ExitCode -eq 0) { $apk = "$ProjectDir\app\build\outputs\apk\debug\app-debug.apk"
+    if (Test-Path $apk) { if (!(Test-Path $OutputDir)) { md $OutputDir -Force | Out-Null }; Copy-Item $apk "$OutputDir\$ApkFilename" -Force }
+    $null = Invoke-Cmd "$GradleDir\bin\gradle.bat" "--stop" $ProjectDir }
+  else { Write-Error "Build Failed. Output:`n$($r.Output)" } }
 
-    # 7. Dummy XML rules to prevent build errors
-    New-Item -ItemType Directory -Path "$ProjectDir\app\src\main\res\xml" -Force | Out-Null
-    Set-Content -Path "$ProjectDir\app\src\main\res\xml\data_extraction_rules.xml" -Value @"
-<?xml version="1.0" encoding="utf-8"?>
-<data-extraction-rules>
-    <cloud-backup><include domain="root" /></cloud-backup>
-    <device-transfer><include domain="root" /></device-transfer>
-</data-extraction-rules>
-"@
-    Set-Content -Path "$ProjectDir\app\src\main\res\xml\backup_rules.xml" -Value @"
-<?xml version="1.0" encoding="utf-8"?>
-<full-backup-content><include domain="root" /></full-backup-content>
-"@
-
-    # 8. Network Security Config
-    Set-Content -Path "$ProjectDir\app\src\main\res\xml\network_security_config.xml" -Value @"
-<?xml version="1.0" encoding="utf-8"?>
-<network-security-config>
-    <base-config cleartextTrafficPermitted="true">
-        <trust-anchors>
-            <certificates src="system" />
-            <certificates src="user" />
-        </trust-anchors>
-    </base-config>
-</network-security-config>
-"@
-
-    # 9. Icons
-    New-Item -ItemType Directory -Path "$ProjectDir\app\src\main\res\mipmap-anydpi-v26" -Force | Out-Null
-    Set-Content -Path "$ProjectDir\app\src\main\res\mipmap-anydpi-v26\ic_launcher.xml" -Value @"
-<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@android:color/holo_blue_light"/>
-    <foreground>
-        <inset android:inset="20dp">
-             <shape android:shape="oval">
-                 <solid android:color="@android:color/white"/>
-             </shape>
-        </inset>
-    </foreground>
-</adaptive-icon>
-"@
-    Copy-Item "$ProjectDir\app\src\main\res\mipmap-anydpi-v26\ic_launcher.xml" "$ProjectDir\app\src\main\res\mipmap-anydpi-v26\ic_launcher_round.xml"
-}
-
-function Invoke-ApkBuild {
-    Write-Status "Initializing Gradle..."
-    Set-Location $ProjectDir
-    
-    $SdkDirEscaped = $SdkDir -replace "\\", "\\"
-    Set-Content -Path "local.properties" -Value "sdk.dir=$SdkDirEscaped"
-
-    $GradleVersion = "8.3"
-    $GradleDir = "$WorkDir\gradle-$GradleVersion"
-    
-    if (-not (Test-Path "$GradleDir\bin\gradle.bat")) {
-        $GradleUrl = "https://services.gradle.org/distributions/gradle-$GradleVersion-bin.zip"
-        Invoke-Download -Uri $GradleUrl -OutFile "$WorkDir\gradle.zip"
-        Invoke-Extract -Path "$WorkDir\gradle.zip" -Destination $WorkDir -CleanDestination:$false
-        Remove-ItemSafe "$WorkDir\gradle.zip"
-    }
-    
-    $GradleCmd = "$GradleDir\bin\gradle.bat"
-    
-    $GradleCmd = "$GradleDir\bin\gradle.bat"
-    
-    $Result = Invoke-CommandWithProgress $GradleCmd "assembleDebug" $ProjectDir
-    
-    if ($Result.ExitCode -eq 0) {
-        $ApkPath = "$ProjectDir\app\build\outputs\apk\debug\app-debug.apk"
-        if (Test-Path $ApkPath) {
-            if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null }
-            Copy-Item $ApkPath "$OutputDir\$ApkFilename" -Force
-            
-            $null = Invoke-CommandWithProgress $GradleCmd "--stop" $ProjectDir
-            
-
-        }
-    }
-    else {
-        Write-Error "Build Failed. Output:`n$($Result.Output)"
-    }
-}
-
-# --- Main Execution ---
-
-try {
-    # 1. Pre-execution Cleanup (Delete Everything)
-    Show-Progress 0 "Starting..."
-    Clear-BuildEnvironment
-    Show-Progress 5 "Cleaning environment..."
-    
-    # 2. Re-create WorkDir
-    if (-not (Test-Path $WorkDir)) { New-Item -ItemType Directory -Path $WorkDir -Force | Out-Null }
-
-    # 3. Initialize & Build
-    Show-Progress 10 "Initializing Curl..."
-    Initialize-Curl
-    
-    Show-Progress 20 "Initializing Java..."
-    Initialize-Java
-    
-    Show-Progress 40 "Initializing Android SDK..."
-    Initialize-Sdk
-    
-    Show-Progress 60 "Creating Project..."
-    New-AndroidProject
-    
-    Show-Progress 70 "Building APK..."
-    Invoke-ApkBuild
-    
-
-}
-catch {
-    Write-Host ""
-    Write-Error $_.Exception.Message
-}
-finally {
-    # 4. Post-execution Cleanup (Delete Everything - Always runs unless NoCleanup is set)
-    if (-not $NoCleanup) {
-        Show-Progress 95 "Cleaning up..."
-        Clear-BuildEnvironment
-    }
-    else {
-        Show-Progress 95 "Skipping cleanup..."
-    }
-    Show-Progress 100 "Finished."
-    Write-Host ""
-}
+try { Show-Progress 0 "Starting..."; Clear-Env; Show-Progress 5 "Cleaning..."
+  if (!(Test-Path $WorkDir)) { md $WorkDir -Force | Out-Null }
+  Show-Progress 10 "Curl..."; Init-Curl
+  Show-Progress 20 "Java..."; Init-Java
+  Show-Progress 40 "SDK..."; Init-Sdk
+  Show-Progress 60 "Project..."; New-Project
+  Show-Progress 70 "Building..."; Build-Apk
+} catch { Write-Host ""; Write-Error $_.Exception.Message }
+finally { if (!$NoCleanup) { Show-Progress 95 "Cleanup..."; Clear-Env } else { Show-Progress 95 "Skip cleanup..." }; Show-Progress 100 "Finished."; Write-Host "" }
