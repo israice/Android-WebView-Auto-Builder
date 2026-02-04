@@ -20,5 +20,5 @@ services:
       if [ -d /app/.git ]; then
         git fetch origin && git reset --hard origin/$${BRANCH:-master} || true
       fi &&
-      gunicorn --bind 0.0.0.0:5000 --workers 2 --threads 4 --preload server:app
+      gunicorn --bind 0.0.0.0:5000 --workers 1 --threads 4 --preload server:app
       "
