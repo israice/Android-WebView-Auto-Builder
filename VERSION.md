@@ -20,7 +20,7 @@ git push origin master --force
 
 # UPDATE
 git add .
-git commit -m "v0.0.17 - added version sync"
+git commit -m "v0.0.18 - version test 1"
 git push
 
 # DEV LOG
@@ -41,3 +41,4 @@ v0.0.14 - fixed build issues
 v0.0.15 - added github webhook to server auto update
 v0.0.16 - fixed mobile desighn and added tools folder
 v0.0.17 - added version sync
+v0.0.18 - version test 1
