@@ -20,7 +20,7 @@ git push origin master --force
 
 # UPDATE
 git add .
-git commit -m "v0.0.19 - version test 2"
+git commit -m "v0.0.20 - version test 3"
 git push
 
 # DEV LOG
@@ -43,3 +43,4 @@ v0.0.16 - fixed mobile desighn and added tools folder
 v0.0.17 - added version sync
 v0.0.18 - version test 1
 v0.0.19 - version test 2
+v0.0.20 - version test 3
