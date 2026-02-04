@@ -23,8 +23,6 @@ RUN pip3 install --no-cache-dir flask requests gunicorn
 # Create non-root user for security
 RUN useradd -m -u 1000 -s /bin/bash appuser
 
-RUN git config --global --add safe.directory /app
-
 WORKDIR /app
 
 # Set ownership
@@ -35,6 +33,9 @@ EXPOSE 5000
 
 # Switch to non-root user
 USER appuser
+
+# Git safe directory config (must be after USER switch)
+RUN git config --global --add safe.directory /app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
