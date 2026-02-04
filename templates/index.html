@@ -25,12 +25,12 @@
             --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
             --input-bg: rgba(0, 0, 0, 0.2);
 
-            /* Spacing System */
+            /* Spacing System - адаптивные размеры */
             --space-xs: 8px;
-            --space-sm: 16px;
-            --space-md: 24px;
-            --space-lg: 32px;
-            --space-xl: 48px;
+            --space-sm: clamp(12px, 3vw, 16px);
+            --space-md: clamp(16px, 4vw, 24px);
+            --space-lg: clamp(20px, 5vw, 32px);
+            --space-xl: clamp(24px, 6vw, 48px);
 
             --radius-md: 12px;
             --radius-lg: 16px;
@@ -78,7 +78,7 @@
             border-radius: var(--radius-xl);
             padding: var(--space-xl);
             width: 100%;
-            max-width: 480px;
+            max-width: min(480px, calc(100% - 32px));
             box-shadow: var(--glass-shadow);
             text-align: center;
             transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -112,7 +112,7 @@
         }
 
         h1 {
-            font-size: 2.5rem;
+            font-size: clamp(1.5rem, 6vw, 2.5rem);
             font-weight: 800;
             margin-bottom: var(--space-lg);
             background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
@@ -312,6 +312,64 @@
 
         #download-btn:hover {
             box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 480px) {
+            body {
+                padding: var(--space-sm);
+            }
+
+            h1 {
+                margin-bottom: var(--space-md);
+            }
+
+            .container {
+                padding: var(--space-md);
+                border-radius: var(--radius-lg);
+            }
+
+            .loader-container {
+                width: 60px;
+                height: 60px;
+                margin-bottom: var(--space-md);
+            }
+
+            button {
+                font-size: 1rem;
+                padding: 12px var(--space-sm);
+            }
+
+            input {
+                padding: 12px var(--space-sm) 12px 40px;
+            }
+
+            .input-icon {
+                left: 12px;
+            }
+
+            #progress-area {
+                margin-top: var(--space-lg);
+            }
+        }
+
+        @media (max-width: 360px) {
+            .container {
+                padding: var(--space-sm);
+            }
+
+            label {
+                font-size: 0.75rem;
+            }
+
+            button {
+                font-size: 0.9rem;
+            }
+
+            .loader-container {
+                width: 50px;
+                height: 50px;
+            }
         }
     </style>
 </head>

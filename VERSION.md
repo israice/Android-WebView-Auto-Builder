@@ -20,7 +20,7 @@ git push origin master --force
 
 # UPDATE
 git add .
-git commit -m "v0.0.15 - test 7"
+git commit -m "v0.0.16 - fixed mobile desighn and added tools folder"
 git push
 
 # DEV LOG
@@ -39,3 +39,4 @@ v0.0.12 - UI Polish & Stability Improvements
 v0.0.13 - README.md future tasks updated
 v0.0.14 - fixed build issues
 v0.0.15 - added github webhook to server auto update
+v0.0.16 - fixed mobile desighn and added tools folder
