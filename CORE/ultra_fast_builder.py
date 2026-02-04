@@ -28,11 +28,8 @@ class UltraFastBuilder:
         self.keystore_path = os.path.join(core_dir, "debug.keystore")
         self.is_windows = os.name == 'nt'
         
-        # Match the shell script's work dir logic
-        if self.is_windows:
-             self.work_dir_base = os.path.abspath(os.path.join(core_dir, "..", "android_build_env"))
-        else:
-             self.work_dir_base = os.path.join(tempfile.gettempdir(), "android_build_env")
+        # Use volume-based path so SDK/JDK persist across container restarts
+        self.work_dir_base = os.path.abspath(os.path.join(core_dir, "..", "android_build_env"))
              
         self.sdk_dir = os.path.join(self.work_dir_base, "sdk")
         self.jdk_dir = os.path.join(self.work_dir_base, "jdk")

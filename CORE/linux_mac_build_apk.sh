@@ -6,8 +6,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 ROOT_DIR="$SCRIPT_DIR/.."
 SETTINGS_FILE="$ROOT_DIR/settings.yaml"
 
-# Default work dir if no ID provided (backward compatibility)
-WORK_DIR_BASE="/tmp/android_build_env"
+# Use project-relative path so SDK/JDK persist in volume
+WORK_DIR_BASE="$ROOT_DIR/android_build_env"
 WORK_DIR="$WORK_DIR_BASE"
 
 OUTPUT_DIR="$ROOT_DIR/FINISHED_HERE"

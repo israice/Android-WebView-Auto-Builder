@@ -5,10 +5,10 @@ docker compose up -d --build
 docker compose build --no-cache
 docker compose up -d
 
+docker logs android-webView-auto-builder -f
 
 # RECOVERY
 docker compose up -d --build
-
 
 git log --oneline -n 20
 
@@ -20,7 +20,7 @@ git push origin master --force
 
 # UPDATE
 git add .
-git commit -m "v0.0.15 - test 3"
+git commit -m "v0.0.15 - test 4"
 git push
 
 # DEV LOG

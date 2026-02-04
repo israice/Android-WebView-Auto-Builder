@@ -1,8 +1,7 @@
 FROM ubuntu:22.04
 
-# Install dependencies required by the build script
-# The script itself downloads Java and Android SDK, so we just need the basics.
-RUN apt-get update && apt-get install -y \
+# Install minimal dependencies - Java/SDK are downloaded by the build script
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     unzip \
     zip \
@@ -11,10 +10,9 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     python3 \
     python3-pip \
-    openjdk-17-jdk-headless \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install flask requests gunicorn
+RUN pip3 install --no-cache-dir flask requests gunicorn
 
 WORKDIR /app
