@@ -20,7 +20,7 @@ git push origin master --force
 
 # UPDATE
 git add .
-git commit -m "v0.0.23 - full file size refactoring"
+git commit -m "v0.0.24 - project upgraded with audit"
 git push
 
 # DEV LOG
@@ -47,3 +47,4 @@ v0.0.20 - version test 3
 v0.0.21 - version test 4
 v0.0.22 - version sync checked and working
 v0.0.23 - full file size refactoring
+v0.0.24 - project upgraded with audit

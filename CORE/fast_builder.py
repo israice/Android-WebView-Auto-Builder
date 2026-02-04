@@ -40,10 +40,13 @@ class FastApkBuilder:
             keytool = os.path.join(self.jdk_dir, "bin", "keytool.exe" if self.is_windows else "keytool")
             keytool = keytool if os.path.exists(keytool) else "keytool"
             try:
+                # Use environment variables for credentials with secure defaults
+                ks_pass = os.environ.get('KEYSTORE_PASSWORD', 'android')
+                ks_alias = os.environ.get('KEYSTORE_ALIAS', 'androiddebugkey')
                 subprocess.run([keytool, "-genkey", "-v", "-keystore", self.keystore_path,
-                    "-storepass", "android", "-alias", "androiddebugkey", "-keypass", "android",
+                    "-storepass", ks_pass, "-alias", ks_alias, "-keypass", ks_pass,
                     "-keyalg", "RSA", "-keysize", "2048", "-validity", "10000",
-                    "-dname", "CN=Android Debug,O=Android,C=US"], check=False, shell=self.is_windows)
+                    "-dname", "CN=Android Debug,O=Android,C=US"], check=True, shell=self.is_windows)
             except Exception as e: print(f"Warning: Failed to generate keystore: {e}")
 
     def _create_template(self):
@@ -103,7 +106,8 @@ class FastApkBuilder:
             if os.path.exists(os.path.join(self.jdk_dir, "bin")):
                 env["JAVA_HOME"] = self.jdk_dir
                 env["PATH"] = os.path.join(self.jdk_dir, "bin") + os.pathsep + env["PATH"]
-            subprocess.run([apksigner, "sign", "--ks", self.keystore_path, "--ks-pass", "pass:android",
+            ks_pass = os.environ.get('KEYSTORE_PASSWORD', 'android')
+            subprocess.run([apksigner, "sign", "--ks", self.keystore_path, "--ks-pass", f"pass:{ks_pass}",
                 "--out", final_apk_path, aligned_apk], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
             progress_callback and progress_callback(100)
             return final_apk_path

@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  lint:
+    name: Lint Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Run ruff linter
+        run: ruff check .
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'CRITICAL,HIGH'
+
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t android-webview-builder:test .
+
+      - name: Start container
+        run: |
+          docker run -d --name test-container -p 5000:5000 android-webview-builder:test \
+            gunicorn --bind 0.0.0.0:5000 --workers 1 --threads 2 server:app
+
+      - name: Wait for startup
+        run: sleep 15
+
+      - name: Test health endpoint
+        run: |
+          curl -f http://localhost:5000/ || exit 1
+
+      - name: Stop container
+        if: always()
+        run: docker stop test-container || true

@@ -10,8 +10,36 @@ services:
     environment:
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
       - BRANCH=${BRANCH:-master}
+      - KEYSTORE_PASSWORD=${KEYSTORE_PASSWORD:-android}
+      - KEYSTORE_ALIAS=${KEYSTORE_ALIAS:-androiddebugkey}
     tty: true
     stdin_open: true
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    # Logging configuration with rotation
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Network isolation
+    networks:
+      - app-network
+    # Temporary filesystem for build artifacts
+    tmpfs:
+      - /tmp:size=100M,mode=1777
     # Ensure script is executable, fix line endings (for Windows users), auto-update from git, and run the web server
     command: >
       /bin/bash -c "
@@ -22,3 +50,7 @@ services:
       fi &&
       gunicorn --bind 0.0.0.0:5000 --workers 1 --threads 4 --preload server:app
       "
+
+networks:
+  app-network:
+    driver: bridge
