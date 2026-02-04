@@ -176,7 +176,7 @@ def webhook():
         subprocess.run(["git", "fetch", "origin"], cwd="/app")
         subprocess.run(["git", "reset", "--hard", f"origin/{BRANCH}"], cwd="/app")
         # Sync version badge before restart
-        subprocess.run(["python", "TOOLS/sync_version.py"], cwd="/app")
+        subprocess.run(["python3", "TOOLS/sync_version.py"], cwd="/app")
         # Kill gunicorn master process (PID 1 in container) to trigger Docker restart
         os.kill(1, signal.SIGTERM)
     return "OK", 200
