@@ -20,7 +20,7 @@ git push origin master --force
 
 # UPDATE
 git add .
-git commit -m "v0.0.24 - project upgraded with audit"
+git commit -m "v0.0.25 - added support for multi APK"
 git push
 
 # DEV LOG
@@ -48,3 +48,4 @@ v0.0.21 - version test 4
 v0.0.22 - version sync checked and working
 v0.0.23 - full file size refactoring
 v0.0.24 - project upgraded with audit
+v0.0.25 - added support for multi APK 

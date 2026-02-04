@@ -13,7 +13,7 @@ fi
 APP_NAME="${APK_FILENAME%.apk}"
 [ -n "$JOB_ID" ] && WORK_DIR="${WORK_DIR_BASE}_${JOB_ID}"
 SDK_DIR="$WORK_DIR/sdk" && PROJECT_DIR="$WORK_DIR/project" && JDK_DIR="$WORK_DIR/jdk"
-PACKAGE_NAME="org.weforks.crazywalk" && SDK_VERSION="33" && BUILD_TOOLS_VERSION="33.0.1"
+NAMESPACE="com.aspect.webview" && APPLICATION_ID="com.aspect.app00000000" && SDK_VERSION="33" && BUILD_TOOLS_VERSION="33.0.1"
 OS="$(uname -s)"
 case "$OS" in
     Linux*) OS_TYPE="linux"; CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"; JDK_URL="https://aka.ms/download-jdk/microsoft-jdk-17-linux-x64.tar.gz";;
@@ -39,7 +39,7 @@ initialize_sdk() {
 }
 create_project() {
     rm -rf "$PROJECT_DIR"
-    mkdir -p "$PROJECT_DIR/app/src/main/"{java/org/weforks/crazywalk,res/{values,layout,xml,mipmap-anydpi-v26},assets}
+    mkdir -p "$PROJECT_DIR/app/src/main/"{java/com/aspect/webview,res/{values,layout,xml,mipmap-anydpi-v26},assets}
     cat <<EOF > "$PROJECT_DIR/settings.gradle"
 pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
 dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
@@ -51,9 +51,9 @@ EOF
     cat <<EOF > "$PROJECT_DIR/app/build.gradle"
 plugins { id 'com.android.application' }
 android {
-    namespace '$PACKAGE_NAME'
+    namespace '$NAMESPACE'
     compileSdk $SDK_VERSION
-    defaultConfig { applicationId '$PACKAGE_NAME'; minSdk 24; targetSdk $SDK_VERSION; versionCode 1; versionName "1.0" }
+    defaultConfig { applicationId '$APPLICATION_ID'; minSdk 24; targetSdk $SDK_VERSION; versionCode 1; versionName "1.0" }
     buildTypes { release { minifyEnabled false; proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
 }
@@ -62,22 +62,28 @@ EOF
     cat <<EOF > "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
-    <uses-permission android:name="android.permission.INTERNET"/><uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-    <application android:allowBackup="true" android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml/network_security_config" android:dataExtractionRules="@xml/data_extraction_rules" android:fullBackupContent="@xml/backup_rules" android:icon="@mipmap/ic_launcher" android:label="$APP_NAME" android:roundIcon="@mipmap/ic_launcher_round" android:supportsRtl="true" android:theme="@style/Theme.CrazyWalk" tools:targetApi="31">
-        <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden" android:theme="@style/Theme.CrazyWalk">
+    <uses-permission android:name="android.permission.INTERNET"/><uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/><uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/><uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <application android:allowBackup="true" android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml/network_security_config" android:dataExtractionRules="@xml/data_extraction_rules" android:fullBackupContent="@xml/backup_rules" android:icon="@mipmap/ic_launcher" android:label="$APP_NAME" android:roundIcon="@mipmap/ic_launcher_round" android:supportsRtl="true" android:theme="@style/Theme.WebApp" tools:targetApi="31">
+        <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden" android:theme="@style/Theme.WebApp">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>
     </application>
 </manifest>
 EOF
     echo "url=$APP_URL" > "$PROJECT_DIR/app/src/main/assets/config.properties"
-    cat <<EOF > "$PROJECT_DIR/app/src/main/java/org/weforks/crazywalk/MainActivity.java"
-package $PACKAGE_NAME;
+    cat <<EOF > "$PROJECT_DIR/app/src/main/java/com/aspect/webview/MainActivity.java"
+package $NAMESPACE;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.DownloadManager;
+import android.content.Context;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.net.Uri;
 import android.net.http.SslError;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.Gravity;
 import android.view.View;
 import android.webkit.*;
@@ -85,7 +91,9 @@ import android.widget.*;
 import java.io.InputStream;
 import java.util.Properties;
 public class MainActivity extends Activity {
+    private static final int PERMISSION_REQUEST_CODE = 1001;
     private WebView myWebView; private LinearLayout errorLayout; private ProgressBar progressBar; private FrameLayout rootLayout; private String currentUrl;
+    private String pendingDownloadUrl; private String pendingUserAgent; private String pendingContentDisposition; private String pendingMimeType;
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         rootLayout = new FrameLayout(this); rootLayout.setBackgroundColor(Color.WHITE);
@@ -110,10 +118,33 @@ public class MainActivity extends Activity {
             }
             @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) { v.loadUrl(r.getUrl().toString()); return true; }
         });
+        myWebView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    pendingDownloadUrl = url; pendingUserAgent = userAgent; pendingContentDisposition = contentDisposition; pendingMimeType = mimeType;
+                    requestPermissions(new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, PERMISSION_REQUEST_CODE); return; } }
+            startDownload(url, userAgent, contentDisposition, mimeType); });
         currentUrl = "$APP_URL";
         try { InputStream is = getAssets().open("config.properties"); Properties p = new Properties(); p.load(is); currentUrl = p.getProperty("url","$APP_URL"); is.close(); } catch(Exception e) {}
         loadUrl();
     }
+    private void startDownload(String url, String userAgent, String contentDisposition, String mimeType) {
+        try { DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+            String filename = URLUtil.guessFileName(url, contentDisposition, mimeType);
+            request.setMimeType(mimeType); request.addRequestHeader("User-Agent", userAgent);
+            request.addRequestHeader("Cookie", CookieManager.getInstance().getCookie(url));
+            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
+            request.allowScanningByMediaScanner(); request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setTitle(filename); request.setDescription("Downloading file...");
+            DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+            if (dm != null) { dm.enqueue(request); Toast.makeText(this, "Downloading: " + filename, Toast.LENGTH_SHORT).show(); }
+        } catch (Exception e) { Toast.makeText(this, "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show(); } }
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (pendingDownloadUrl != null) { startDownload(pendingDownloadUrl, pendingUserAgent, pendingContentDisposition, pendingMimeType); pendingDownloadUrl = null; }
+            } else { Toast.makeText(this, "Storage permission required for downloads", Toast.LENGTH_LONG).show(); } } }
     private void createErrorLayout() {
         errorLayout = new LinearLayout(this); errorLayout.setOrientation(LinearLayout.VERTICAL); errorLayout.setGravity(Gravity.CENTER);
         errorLayout.setBackgroundColor(Color.WHITE); errorLayout.setVisibility(View.GONE);
@@ -138,7 +169,7 @@ public class MainActivity extends Activity {
     @Override protected void onDestroy() { if(myWebView!=null) myWebView.destroy(); super.onDestroy(); }
 }
 EOF
-    echo '<?xml version="1.0" encoding="utf-8"?><resources><style name="Theme.CrazyWalk" parent="android:Theme.Material.Light.NoActionBar"><item name="android:statusBarColor">@android:color/black</item></style></resources>' > "$PROJECT_DIR/app/src/main/res/values/styles.xml"
+    echo '<?xml version="1.0" encoding="utf-8"?><resources><style name="Theme.WebApp" parent="android:Theme.Material.Light.NoActionBar"><item name="android:statusBarColor">@android:color/black</item></style></resources>' > "$PROJECT_DIR/app/src/main/res/values/styles.xml"
     echo '<data-extraction-rules><cloud-backup><include domain="root"/></cloud-backup></data-extraction-rules>' > "$PROJECT_DIR/app/src/main/res/xml/data_extraction_rules.xml"
     echo '<full-backup-content><include domain="root"/></full-backup-content>' > "$PROJECT_DIR/app/src/main/res/xml/backup_rules.xml"
     echo '<?xml version="1.0" encoding="utf-8"?><network-security-config><base-config cleartextTrafficPermitted="true"><trust-anchors><certificates src="system"/><certificates src="user"/></trust-anchors></base-config></network-security-config>' > "$PROJECT_DIR/app/src/main/res/xml/network_security_config.xml"

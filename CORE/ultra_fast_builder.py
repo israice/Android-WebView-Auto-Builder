@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import zipfile
 import logging
+import hashlib
 from typing import Optional, Callable
 
 from CORE.builder_base import APKBuilderBase
@@ -30,12 +31,29 @@ try:
         fcntl.flock(f, fcntl.LOCK_UN)
 except ImportError:
     import msvcrt
+    import time
 
     def lock_file(f) -> None:
+        # Write a byte to ensure file is not empty (msvcrt.locking requires content)
+        f.write(' ')
+        f.flush()
+        f.seek(0)
+        # Use non-blocking lock with retry to avoid deadlock
+        for _ in range(10):
+            try:
+                msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+                return
+            except OSError:
+                time.sleep(0.1)
+        # If retries exhausted, try blocking lock as last resort
         msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
 
     def unlock_file(f) -> None:
-        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+        try:
+            f.seek(0)
+            msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+        except OSError:
+            pass  # Already unlocked or never locked
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +92,7 @@ class UltraFastBuilder(APKBuilderBase):
     """
 
     PLACEHOLDER_NAME: str = "PLACEHOLDER_APP_NAME__________________________"
+    PLACEHOLDER_APPID: str = "app00000000"  # 8 zeros for unique hex suffix
 
     def __init__(self, core_dir: str) -> None:
         """Initialize the ultra-fast builder.
@@ -88,26 +107,19 @@ class UltraFastBuilder(APKBuilderBase):
         """Prepare the build environment with template and keystore.
 
         Creates the template APK if it doesn't exist and ensures
-        the debug keystore is available. Uses file locking to
-        prevent race conditions during parallel initialization.
+        the debug keystore is available.
         """
-        lock_path = os.path.join(self.work_dir_base, ".init.lock")
         os.makedirs(self.work_dir_base, exist_ok=True)
 
-        with open(lock_path, 'w') as f:
-            lock_file(f)
-            try:
-                output_dir = os.path.join(os.path.dirname(self.core_dir), "FINISHED_HERE")
-                template_exists = os.path.exists(os.path.join(output_dir, "TemplateUltra.apk"))
-                tools_exist = self.get_build_tool("zipalign") is not None
+        output_dir = os.path.join(os.path.dirname(self.core_dir), "FINISHED_HERE")
+        template_exists = os.path.exists(os.path.join(output_dir, "TemplateUltra.apk"))
+        tools_exist = self.get_build_tool("zipalign") is not None
 
-                if not template_exists or not tools_exist:
-                    logger.info("Generating Ultra Fast Template...")
-                    self._create_template()
+        if not template_exists or not tools_exist:
+            logger.info("Generating Ultra Fast Template...")
+            self._create_template()
 
-                self.ensure_keystore()
-            finally:
-                unlock_file(f)
+        self.ensure_keystore()
 
     def _create_template(self) -> None:
         """Create the template APK with placeholder app name.
@@ -134,9 +146,10 @@ class UltraFastBuilder(APKBuilderBase):
                 sf.write(f'redirect_to_url: "TEMPLATE_URL"\napk_name: "{placeholder_filename}"')
 
             try:
+                # Don't capture output so user can see progress
                 subprocess.run(
                     ["powershell.exe", "-ExecutionPolicy", "Bypass", "-File", script_path, "-NoCleanup"],
-                    check=True, capture_output=True
+                    check=True
                 )
             finally:
                 # Restore original settings
@@ -146,9 +159,10 @@ class UltraFastBuilder(APKBuilderBase):
         else:
             script_path = os.path.join(self.core_dir, "linux_mac_build_apk.sh")
             os.chmod(script_path, 0o755)
+            # Don't capture output so user can see progress
             subprocess.run(
                 [script_path, "--url", "TEMPLATE_URL", "--name", placeholder_filename, "--no-cleanup"],
-                check=True, capture_output=True
+                check=True
             )
 
         # Rename to template
@@ -158,6 +172,24 @@ class UltraFastBuilder(APKBuilderBase):
                 os.remove(dst)
             os.rename(src, dst)
             logger.info(f"Template created at {dst}")
+
+    def _generate_unique_appid(self, url: str, job_id: str) -> str:
+        """Generate unique applicationId suffix from URL and job_id.
+
+        Creates an 8-character hex string derived from hashing the URL
+        and job_id. This ensures each APK gets a unique package name,
+        allowing multiple apps to be installed side-by-side.
+
+        Args:
+            url: The target URL for this APK
+            job_id: Unique job identifier
+
+        Returns:
+            String like 'appa1b2c3d4' (11 chars total)
+        """
+        unique_string = f"{url}:{job_id}"
+        hash_bytes = hashlib.md5(unique_string.encode()).hexdigest()[:8]
+        return f"app{hash_bytes}"
 
     def build(
         self,
@@ -194,6 +226,10 @@ class UltraFastBuilder(APKBuilderBase):
         unsigned_apk = os.path.join(self.work_dir_base, f"unsigned_{job_id}.apk")
         aligned_apk = os.path.join(self.work_dir_base, f"aligned_{job_id}.apk")
 
+        # Generate unique applicationId suffix
+        unique_appid = self._generate_unique_appid(url, job_id)
+        logger.info(f"Generated unique applicationId suffix: {unique_appid}")
+
         # Copy template
         shutil.copy2(template_apk, temp_apk)
         cb(30)
@@ -219,7 +255,17 @@ class UltraFastBuilder(APKBuilderBase):
                         new_bytes = app_name_bytes + (b'\x00' * (len(placeholder_bytes) - len(app_name_bytes)))
                         buffer = buffer.replace(placeholder_bytes, new_bytes)
                     else:
-                        logger.warning("Placeholder not found in Manifest!")
+                        logger.warning("App name placeholder not found in Manifest!")
+
+                    # Replace applicationId placeholder (UTF-16LE encoded)
+                    appid_placeholder_bytes = self.PLACEHOLDER_APPID.encode('utf-16le')
+                    unique_appid_bytes = unique_appid.encode('utf-16le')
+
+                    if appid_placeholder_bytes in buffer:
+                        buffer = buffer.replace(appid_placeholder_bytes, unique_appid_bytes)
+                        logger.info(f"Patched applicationId: {self.PLACEHOLDER_APPID} -> {unique_appid}")
+                    else:
+                        logger.warning("ApplicationId placeholder not found in Manifest!")
 
                 zout.writestr(item, buffer)
         cb(60)

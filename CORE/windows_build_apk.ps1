@@ -5,7 +5,7 @@ $ErrorActionPreference = "Stop"; $ProgressPreference = 'SilentlyContinue'
 $SettingsPath = "$PSScriptRoot\..\settings.yaml"
 if (Test-Path $SettingsPath) { $Settings = Get-Content $SettingsPath; $AppUrl = ($Settings -match "redirect_to_url").Split('"')[1]; $ApkFilename = ($Settings -match "apk_name").Split('"')[1]; $AppName = $ApkFilename.Replace(".apk", "") }
 else { $AppUrl = "https://crazywalk.weforks.org/"; $AppName = "CrazyWalk"; $ApkFilename = "CrazyWalk.apk" }
-$PackageName = "org.weforks.crazywalk"; $SdkVersion = "33"; $BuildToolsVersion = "33.0.1"
+$Namespace = "com.aspect.webview"; $ApplicationId = "com.aspect.app00000000"; $SdkVersion = "33"; $BuildToolsVersion = "33.0.1"
 $WorkDir = "$PSScriptRoot\..\android_build_env"; $OutputDir = "$PSScriptRoot\..\FINISHED_HERE"
 $SdkDir = "$WorkDir\sdk"; $ProjectDir = "$WorkDir\project"; $JdkDir = "$WorkDir\jdk"; $CurlDir = "$WorkDir\curl"
 $CmdLineToolsUrl = "https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip"
@@ -48,8 +48,10 @@ function Wait-Lock { param($Path, $Timeout=30); $sw = [System.Diagnostics.Stopwa
   while ($sw.Elapsed.TotalSeconds -lt $Timeout) { try { $s = [System.IO.File]::Open($Path,'Open','Read','None'); if ($s) { $s.Close(); return } } catch { Start-Sleep -Milliseconds 1000 } } }
 
 function Get-File { param($Uri, $Out)
-  if (Get-Command "curl.exe" -EA SilentlyContinue) { $r = Invoke-Cmd "curl.exe" "-L -o `"$Out`" `"$Uri`" -sS"; if ($r.ExitCode -ne 0) { throw "Download failed" } }
-  else { Invoke-WebRequest -Uri $Uri -OutFile $Out -UseBasicParsing }
+  if (Get-Command "curl.exe" -EA SilentlyContinue) {
+    $p = Start-Process -FilePath "curl.exe" -ArgumentList "-L","-o","`"$Out`"","`"$Uri`"","-sS","--connect-timeout","60" -NoNewWindow -Wait -PassThru
+    if ($p.ExitCode -ne 0) { throw "Download failed: curl exit code $($p.ExitCode)" }
+  } else { Invoke-WebRequest -Uri $Uri -OutFile $Out -UseBasicParsing }
   Wait-Lock $Out; Unblock-File -Path $Out -EA SilentlyContinue }
 
 function Expand-Zip { param($Path, $Dest, [bool]$Clean = $true)
@@ -80,34 +82,38 @@ function Init-Sdk { if (!(Test-Path $SdkDir)) { md $SdkDir -Force | Out-Null }
   1..20 | ForEach-Object { "y" } | & $SdkMgr --sdk_root="$SdkDir" "platform-tools" "platforms;android-$SdkVersion" "build-tools;$BuildToolsVersion" | Out-Null }
 
 function New-Project { if (Test-Path $ProjectDir) { Remove-Safe $ProjectDir }
-  md "$ProjectDir\app\src\main\java\org\weforks\crazywalk" -Force | Out-Null
+  md "$ProjectDir\app\src\main\java\com\aspect\webview" -Force | Out-Null
   md "$ProjectDir\app\src\main\res\values","$ProjectDir\app\src\main\res\layout","$ProjectDir\app\src\main\res\xml","$ProjectDir\app\src\main\res\mipmap-anydpi-v26","$ProjectDir\app\src\main\assets" -Force | Out-Null
   Set-Content "$ProjectDir\settings.gradle" "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }`ndependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }`nrootProject.name = `"$AppName`"`ninclude ':app'"
   Set-Content "$ProjectDir\gradle.properties" "android.useAndroidX=true`nandroid.enableJetifier=true"
   Set-Content "$ProjectDir\build.gradle" "plugins { id 'com.android.application' version '8.1.0' apply false }"
   Set-Content "$ProjectDir\app\build.gradle" @"
 plugins { id 'com.android.application' }
-android { namespace '$PackageName'; compileSdk $SdkVersion
-  defaultConfig { applicationId '$PackageName'; minSdk 24; targetSdk $SdkVersion; versionCode 1; versionName "1.0" }
+android { namespace '$Namespace'; compileSdk $SdkVersion
+  defaultConfig { applicationId '$ApplicationId'; minSdk 24; targetSdk $SdkVersion; versionCode 1; versionName "1.0" }
   buildTypes { release { minifyEnabled false; proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro' } }
   compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 } }
 dependencies { implementation 'androidx.appcompat:appcompat:1.6.1'; implementation 'com.google.android.material:material:1.9.0' }
 "@
   Set-Content "$ProjectDir\app\src\main\AndroidManifest.xml" @"
 <?xml version="1.0" encoding="utf-8"?><manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
-<uses-permission android:name="android.permission.INTERNET"/><uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-<application android:allowBackup="true" android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml/network_security_config" android:dataExtractionRules="@xml/data_extraction_rules" android:fullBackupContent="@xml/backup_rules" android:icon="@mipmap/ic_launcher" android:label="$AppName" android:roundIcon="@mipmap/ic_launcher_round" android:supportsRtl="true" android:theme="@style/Theme.CrazyWalk" tools:targetApi="31">
-<activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden" android:theme="@style/Theme.CrazyWalk"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
+<uses-permission android:name="android.permission.INTERNET"/><uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/><uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/><uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+<application android:allowBackup="true" android:usesCleartextTraffic="true" android:networkSecurityConfig="@xml/network_security_config" android:dataExtractionRules="@xml/data_extraction_rules" android:fullBackupContent="@xml/backup_rules" android:icon="@mipmap/ic_launcher" android:label="$AppName" android:roundIcon="@mipmap/ic_launcher_round" android:supportsRtl="true" android:theme="@style/Theme.WebApp" tools:targetApi="31">
+<activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden" android:theme="@style/Theme.WebApp"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>
 </application></manifest>
 "@
   Set-Content "$ProjectDir\app\src\main\assets\config.properties" "url=$AppUrl"
-  Set-Content "$ProjectDir\app\src\main\java\org\weforks\crazywalk\MainActivity.java" @"
-package $PackageName;
-import android.app.Activity; import android.app.AlertDialog; import android.graphics.Color; import android.net.http.SslError;
-import android.os.Bundle; import android.view.Gravity; import android.view.View; import android.webkit.*;
+  Set-Content "$ProjectDir\app\src\main\java\com\aspect\webview\MainActivity.java" @"
+package $Namespace;
+import android.app.Activity; import android.app.AlertDialog; import android.app.DownloadManager;
+import android.content.Context; import android.content.pm.PackageManager; import android.graphics.Color;
+import android.net.Uri; import android.net.http.SslError; import android.os.Build; import android.os.Bundle;
+import android.os.Environment; import android.view.Gravity; import android.view.View; import android.webkit.*;
 import android.widget.*; import java.io.InputStream; import java.util.Properties;
 public class MainActivity extends Activity {
+  private static final int PERMISSION_REQUEST_CODE = 1001;
   private WebView myWebView; private LinearLayout errorLayout; private ProgressBar progressBar; private FrameLayout rootLayout; private String currentUrl;
+  private String pendingDownloadUrl; private String pendingUserAgent; private String pendingContentDisposition; private String pendingMimeType;
   @Override protected void onCreate(Bundle savedInstanceState) { super.onCreate(savedInstanceState);
     rootLayout = new FrameLayout(this); rootLayout.setBackgroundColor(Color.WHITE);
     myWebView = new WebView(this); rootLayout.addView(myWebView, new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
@@ -125,8 +131,31 @@ public class MainActivity extends Activity {
       @Override public void onReceivedSslError(WebView v, SslErrorHandler h, SslError e) { new AlertDialog.Builder(MainActivity.this).setTitle("SSL Warning").setMessage("Certificate problem. Continue?").setPositiveButton("Continue", (d,w)->h.proceed()).setNegativeButton("Cancel", (d,w)->{h.cancel();showError("Security Error","SSL failed.");}).setCancelable(false).show(); }
       @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) { v.loadUrl(r.getUrl().toString()); return true; }
     });
+    myWebView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+        if (checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+          pendingDownloadUrl = url; pendingUserAgent = userAgent; pendingContentDisposition = contentDisposition; pendingMimeType = mimeType;
+          requestPermissions(new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, PERMISSION_REQUEST_CODE); return; } }
+      startDownload(url, userAgent, contentDisposition, mimeType); });
     currentUrl = "$AppUrl"; try { InputStream is = getAssets().open("config.properties"); Properties p = new Properties(); p.load(is); currentUrl = p.getProperty("url", "$AppUrl"); is.close(); } catch (Exception e) {}
     loadUrl(); }
+  private void startDownload(String url, String userAgent, String contentDisposition, String mimeType) {
+    try { DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+      String filename = URLUtil.guessFileName(url, contentDisposition, mimeType);
+      request.setMimeType(mimeType); request.addRequestHeader("User-Agent", userAgent);
+      request.addRequestHeader("Cookie", CookieManager.getInstance().getCookie(url));
+      request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
+      request.allowScanningByMediaScanner(); request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+      request.setTitle(filename); request.setDescription("Downloading file...");
+      DownloadManager dm = (DownloadManager) getSystemService(Context.DOWNLOAD_SERVICE);
+      if (dm != null) { dm.enqueue(request); Toast.makeText(this, "Downloading: " + filename, Toast.LENGTH_SHORT).show(); }
+    } catch (Exception e) { Toast.makeText(this, "Download failed: " + e.getMessage(), Toast.LENGTH_LONG).show(); } }
+  @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+    if (requestCode == PERMISSION_REQUEST_CODE) {
+      if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+        if (pendingDownloadUrl != null) { startDownload(pendingDownloadUrl, pendingUserAgent, pendingContentDisposition, pendingMimeType); pendingDownloadUrl = null; }
+      } else { Toast.makeText(this, "Storage permission required for downloads", Toast.LENGTH_LONG).show(); } } }
   private void createErrorLayout() { errorLayout = new LinearLayout(this); errorLayout.setOrientation(LinearLayout.VERTICAL); errorLayout.setGravity(Gravity.CENTER); errorLayout.setBackgroundColor(Color.WHITE); errorLayout.setVisibility(View.GONE);
     TextView icon = new TextView(this); icon.setText("\u26A0"); icon.setTextSize(64); icon.setGravity(Gravity.CENTER); errorLayout.addView(icon);
     TextView title = new TextView(this); title.setId(android.R.id.title); title.setText("Error"); title.setTextSize(24); title.setTextColor(Color.parseColor("#333333")); title.setGravity(Gravity.CENTER);
@@ -143,7 +172,7 @@ public class MainActivity extends Activity {
   @Override protected void onDestroy() { if (myWebView != null) myWebView.destroy(); super.onDestroy(); }
 }
 "@
-  Set-Content "$ProjectDir\app\src\main\res\values\styles.xml" '<?xml version="1.0" encoding="utf-8"?><resources><style name="Theme.CrazyWalk" parent="android:Theme.Material.Light.NoActionBar"><item name="android:statusBarColor">@android:color/black</item></style></resources>'
+  Set-Content "$ProjectDir\app\src\main\res\values\styles.xml" '<?xml version="1.0" encoding="utf-8"?><resources><style name="Theme.WebApp" parent="android:Theme.Material.Light.NoActionBar"><item name="android:statusBarColor">@android:color/black</item></style></resources>'
   Set-Content "$ProjectDir\app\src\main\res\xml\data_extraction_rules.xml" '<?xml version="1.0" encoding="utf-8"?><data-extraction-rules><cloud-backup><include domain="root"/></cloud-backup><device-transfer><include domain="root"/></device-transfer></data-extraction-rules>'
   Set-Content "$ProjectDir\app\src\main\res\xml\backup_rules.xml" '<?xml version="1.0" encoding="utf-8"?><full-backup-content><include domain="root"/></full-backup-content>'
   Set-Content "$ProjectDir\app\src\main\res\xml\network_security_config.xml" '<?xml version="1.0" encoding="utf-8"?><network-security-config><base-config cleartextTrafficPermitted="true"><trust-anchors><certificates src="system"/><certificates src="user"/></trust-anchors></base-config></network-security-config>'
@@ -153,11 +182,11 @@ public class MainActivity extends Activity {
 function Build-Apk { Set-Location $ProjectDir; Set-Content "local.properties" "sdk.dir=$($SdkDir -replace '\\','\\')"
   $GradleVer = "8.3"; $GradleDir = "$WorkDir\gradle-$GradleVer"
   if (!(Test-Path "$GradleDir\bin\gradle.bat")) { Get-File "https://services.gradle.org/distributions/gradle-$GradleVer-bin.zip" "$WorkDir\gradle.zip"; Expand-Zip "$WorkDir\gradle.zip" $WorkDir -Clean:$false; Remove-Safe "$WorkDir\gradle.zip" }
-  $r = Invoke-Cmd "$GradleDir\bin\gradle.bat" "assembleDebug" $ProjectDir
-  if ($r.ExitCode -eq 0) { $apk = "$ProjectDir\app\build\outputs\apk\debug\app-debug.apk"
+  $p = Start-Process -FilePath "$GradleDir\bin\gradle.bat" -ArgumentList "assembleDebug" -WorkingDirectory $ProjectDir -NoNewWindow -Wait -PassThru
+  if ($p.ExitCode -eq 0) { $apk = "$ProjectDir\app\build\outputs\apk\debug\app-debug.apk"
     if (Test-Path $apk) { if (!(Test-Path $OutputDir)) { md $OutputDir -Force | Out-Null }; Copy-Item $apk "$OutputDir\$ApkFilename" -Force }
-    $null = Invoke-Cmd "$GradleDir\bin\gradle.bat" "--stop" $ProjectDir }
-  else { Write-Error "Build Failed. Output:`n$($r.Output)" } }
+    Start-Process -FilePath "$GradleDir\bin\gradle.bat" -ArgumentList "--stop" -WorkingDirectory $ProjectDir -NoNewWindow -Wait | Out-Null }
+  else { Write-Error "Build Failed. Gradle exit code: $($p.ExitCode)" } }
 
 try { Show-Progress 0 "Starting..."; Clear-Env; Show-Progress 5 "Cleaning..."
   if (!(Test-Path $WorkDir)) { md $WorkDir -Force | Out-Null }

@@ -15,6 +15,7 @@ import hashlib
 import hmac
 import os
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -72,10 +73,17 @@ def prepare_builder() -> None:
         logger.info("Initializing Ultra Fast APK Builder environment...")
         fast_builder.prepare_environment()
         logger.info("Ultra Fast APK Builder ready!")
+    except KeyboardInterrupt:
+        print("\n\nBuild interrupted by user (Ctrl+C)")
+        sys.exit(0)
     except Exception as e:
         logger.error("Failed to initialize builder", exc_info=True)
 
-prepare_builder()
+try:
+    prepare_builder()
+except KeyboardInterrupt:
+    print("\n\nInterrupted by user (Ctrl+C)")
+    sys.exit(0)
 
 
 @app.before_request
@@ -113,6 +121,8 @@ def run_build(job_id: str, apk_name: str, url: str) -> None:
     if not apk_name.endswith('.apk'):
         apk_name += '.apk'
 
+    # Sanitize filename for safe filesystem and URL handling
+    apk_name = secure_filename(apk_name)
     jobs[job_id]['filename'] = apk_name
 
     def update_progress(p: int) -> None:
