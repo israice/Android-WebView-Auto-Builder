@@ -20,7 +20,7 @@ git push origin master --force
 
 # UPDATE
 git add .
-git commit -m "v0.0.15 - test 5"
+git commit -m "v0.0.15 - test 6"
 git push
 
 # DEV LOG
