@@ -58,10 +58,10 @@ class UltraFastBuilder:
     def prepare_environment(self):
         """Ensures template exists with the PLACEHOLDER name."""
         # Use file lock to prevent race condition with multiple workers
-        lock_file = os.path.join(self.work_dir_base, ".init.lock")
+        lock_path = os.path.join(self.work_dir_base, ".init.lock")
         os.makedirs(self.work_dir_base, exist_ok=True)
 
-        with open(lock_file, 'w') as f:
+        with open(lock_path, 'w') as f:
             lock_file(f)  # Exclusive lock
             try:
                 # Check if template APK exists
