@@ -15,4 +15,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN pip3 install --no-cache-dir flask requests gunicorn
 
+RUN git config --global --add safe.directory /app
+
 WORKDIR /app

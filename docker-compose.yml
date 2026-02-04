@@ -17,7 +17,6 @@ services:
       /bin/bash -c "
       dos2unix CORE/linux_mac_build_apk.sh &&
       chmod +x CORE/linux_mac_build_apk.sh &&
-      git config --global --add safe.directory /app &&
       if [ -d /app/.git ]; then
         git fetch origin && git reset --hard origin/$${BRANCH:-master} || true
       fi &&
