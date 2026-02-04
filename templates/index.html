@@ -25,12 +25,12 @@
             --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
             --input-bg: rgba(0, 0, 0, 0.2);
 
-            /* Spacing System - адаптивные размеры */
-            --space-xs: 8px;
-            --space-sm: clamp(12px, 3vw, 16px);
-            --space-md: clamp(16px, 4vw, 24px);
-            --space-lg: clamp(20px, 5vw, 32px);
-            --space-xl: clamp(24px, 6vw, 48px);
+            /* Spacing System */
+            --space-xs: 4px;
+            --space-sm: 12px;
+            --space-md: 12px;
+            --space-lg: 16px;
+            --space-xl: 20px;
 
             --radius-md: 12px;
             --radius-lg: 16px;
@@ -43,6 +43,10 @@
             padding: 0;
         }
 
+        html, body {
+            height: 100%;
+        }
+
         body {
             font-family: 'Inter', sans-serif;
             background-color: var(--bg-color);
@@ -50,10 +54,49 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
+            min-height: 100%;
             overflow: hidden;
             position: relative;
-            padding: var(--space-md);
+            padding: var(--space-sm);
+        }
+
+        /* Page Preloader */
+        #page-preloader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+
+        #page-preloader.hidden {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        #page-preloader .preloader-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-top-color: var(--primary-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Hide content until loaded */
+        .page-content {
+            opacity: 0;
+            transition: opacity 0.4s ease;
+        }
+
+        .page-content.loaded {
+            opacity: 1;
         }
 
         /* WebGL Background */
@@ -75,10 +118,11 @@
             border: 1px solid var(--glass-border);
             border-top: 1px solid rgba(255, 255, 255, 0.15);
             border-left: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: var(--radius-xl);
-            padding: var(--space-xl);
+            border-radius: var(--radius-lg);
+            padding: 12px 16px;
             width: 100%;
-            max-width: min(480px, calc(100% - 32px));
+            max-width: min(480px, calc(100% - 24px));
+            max-height: calc(100vh - 24px);
             box-shadow: var(--glass-shadow);
             text-align: center;
             transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
@@ -112,9 +156,9 @@
         }
 
         h1 {
-            font-size: clamp(1.5rem, 6vw, 2.5rem);
+            font-size: 1.2rem;
             font-weight: 800;
-            margin-bottom: var(--space-lg);
+            margin-bottom: 8px;
             background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
             background-clip: text;
             -webkit-background-clip: text;
@@ -125,15 +169,15 @@
 
         /* Form Elements */
         .input-group {
-            margin-bottom: var(--space-md);
+            margin-bottom: 8px;
             text-align: left;
             position: relative;
         }
 
         label {
             display: block;
-            margin-bottom: var(--space-xs);
-            font-size: 0.85rem;
+            margin-bottom: 4px;
+            font-size: 0.7rem;
             font-weight: 600;
             color: var(--text-muted);
             letter-spacing: 0.05em;
@@ -149,7 +193,8 @@
 
         .input-icon {
             position: absolute;
-            left: 16px;
+            left: 10px;
+            font-size: 0.85rem;
             color: var(--text-muted);
             transition: color 0.3s ease;
             pointer-events: none;
@@ -157,12 +202,12 @@
 
         input {
             width: 100%;
-            padding: var(--space-sm) var(--space-md) var(--space-sm) 48px; /* Space for icon */
+            padding: 8px 12px 8px 36px;
             background: var(--input-bg);
             border: 1px solid transparent;
             border-radius: var(--radius-lg);
             color: white;
-            font-size: 1rem;
+            font-size: 0.9rem;
             line-height: 1.5;
             transition: all 0.3s ease;
             outline: none;
@@ -186,13 +231,13 @@
 
         button {
             width: 100%;
-            padding: var(--space-sm) var(--space-md);
-            margin-top: var(--space-sm);
+            padding: 8px 12px;
+            margin-top: 8px;
             background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             color: white;
             border: none;
             border-radius: var(--radius-lg);
-            font-size: 1.1rem;
+            font-size: 0.85rem;
             font-weight: 700;
             cursor: pointer;
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -215,7 +260,7 @@
         /* Progress Area */
         #progress-area {
             display: none;
-            margin-top: var(--space-xl);
+            margin-top: 12px;
             animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
@@ -226,9 +271,9 @@
 
         .loader-container {
             position: relative;
-            width: 80px;
-            height: 80px;
-            margin: 0 auto var(--space-lg);
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 8px;
         }
 
         .loader {
@@ -251,7 +296,7 @@
             background: rgba(255, 255, 255, 0.1);
             border-radius: 100px;
             overflow: hidden;
-            margin-bottom: var(--space-lg);
+            margin-bottom: 8px;
             position: relative;
         }
 
@@ -295,9 +340,9 @@
         }
 
         .status-text {
-            font-size: 1rem;
+            font-size: 0.85rem;
             color: var(--text-muted);
-            margin-bottom: var(--space-xs);
+            margin-bottom: 4px;
             font-weight: 500;
             letter-spacing: 0.02em;
         }
@@ -306,7 +351,7 @@
         #download-btn {
             background: linear-gradient(135deg, #10b981, #059669);
             display: none;
-            margin-top: var(--space-lg);
+            margin-top: 12px;
             box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
         }
 
@@ -314,70 +359,45 @@
             box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
         }
 
-        /* Mobile Responsive */
-        @media (max-width: 480px) {
-            body {
-                padding: var(--space-sm);
-            }
-
-            h1 {
-                margin-bottom: var(--space-md);
-            }
-
-            .container {
-                padding: var(--space-md);
-                border-radius: var(--radius-lg);
-            }
-
-            .loader-container {
-                width: 60px;
-                height: 60px;
-                margin-bottom: var(--space-md);
-            }
-
-            button {
-                font-size: 1rem;
-                padding: 12px var(--space-sm);
-            }
-
-            input {
-                padding: 12px var(--space-sm) 12px 40px;
-            }
-
-            .input-icon {
-                left: 12px;
-            }
-
-            #progress-area {
-                margin-top: var(--space-lg);
-            }
+        /* Version Badge */
+        .version-badge {
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            font-size: 0.7rem;
+            color: #10b981;
+            z-index: 100;
+            font-weight: 500;
+            letter-spacing: 0.05em;
+            background: transparent;
+            border: 1px solid #10b981;
+            border-radius: 6px;
+            padding: 4px 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: 'Inter', sans-serif;
+            width: auto;
+            margin: 0;
+            box-shadow: none;
         }
 
-        @media (max-width: 360px) {
-            .container {
-                padding: var(--space-sm);
-            }
-
-            label {
-                font-size: 0.75rem;
-            }
-
-            button {
-                font-size: 0.9rem;
-            }
-
-            .loader-container {
-                width: 50px;
-                height: 50px;
-            }
+        .version-badge:hover {
+            background: rgba(16, 185, 129, 0.1);
         }
     </style>
 </head>
 
 <body>
-    <canvas id="c"></canvas>
+    <!-- Page Preloader -->
+    <div id="page-preloader">
+        <div class="preloader-spinner"></div>
+    </div>
 
-    <div class="container">
+    <div class="page-content">
+        <button class="version-badge">v0.0.16</button>
+        <canvas id="c"></canvas>
+
+        <div class="container">
         <h1>APK Generator</h1>
 
         <div id="input-area">
@@ -416,6 +436,7 @@
             </button>
         </a>
     </div>
+    </div><!-- end .page-content -->
 
     <!-- WebGL Background Script -->
     <script>
@@ -675,6 +696,18 @@
                 // Resume polling
                 pollStatus(savedJobId);
             }
+        });
+
+        // Hide preloader after all resources loaded
+        window.addEventListener('load', () => {
+            const preloader = document.getElementById('page-preloader');
+            const pageContent = document.querySelector('.page-content');
+
+            // Small delay to ensure smooth transition
+            setTimeout(() => {
+                preloader.classList.add('hidden');
+                pageContent.classList.add('loaded');
+            }, 100);
         });
     </script>
 </body>

@@ -97,6 +97,10 @@ def delete_file_later(filepath, delay=3):
             
     threading.Thread(target=delayed_delete).start()
 
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -171,6 +175,8 @@ def webhook():
         print(f"Webhook received: updating from {BRANCH}...")
         subprocess.run(["git", "fetch", "origin"], cwd="/app")
         subprocess.run(["git", "reset", "--hard", f"origin/{BRANCH}"], cwd="/app")
+        # Sync version badge before restart
+        subprocess.run(["python", "TOOLS/sync_version.py"], cwd="/app")
         # Kill gunicorn master process (PID 1 in container) to trigger Docker restart
         os.kill(1, signal.SIGTERM)
     return "OK", 200
@@ -180,4 +186,4 @@ if __name__ == '__main__':
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
         
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5001)
