@@ -182,10 +182,17 @@ public class MainActivity extends Activity {
 function Build-Apk { Set-Location $ProjectDir; Set-Content "local.properties" "sdk.dir=$($SdkDir -replace '\\','\\')"
   $GradleVer = "8.3"; $GradleDir = "$WorkDir\gradle-$GradleVer"
   if (!(Test-Path "$GradleDir\bin\gradle.bat")) { Get-File "https://services.gradle.org/distributions/gradle-$GradleVer-bin.zip" "$WorkDir\gradle.zip"; Expand-Zip "$WorkDir\gradle.zip" $WorkDir -Clean:$false; Remove-Safe "$WorkDir\gradle.zip" }
-  $p = Start-Process -FilePath "$GradleDir\bin\gradle.bat" -ArgumentList "assembleDebug" -WorkingDirectory $ProjectDir -NoNewWindow -Wait -PassThru
+  # Run gradle with output redirected to prevent daemon from blocking
+  $gradleLog = "$WorkDir\gradle_build.log"
+  $p = Start-Process -FilePath "$GradleDir\bin\gradle.bat" -ArgumentList "assembleDebug","--no-daemon" -WorkingDirectory $ProjectDir -RedirectStandardOutput $gradleLog -RedirectStandardError "$WorkDir\gradle_err.log" -Wait -PassThru
+  if (Test-Path $gradleLog) { Get-Content $gradleLog -Tail 10 | Write-Host }
   if ($p.ExitCode -eq 0) { $apk = "$ProjectDir\app\build\outputs\apk\debug\app-debug.apk"
     if (Test-Path $apk) { if (!(Test-Path $OutputDir)) { md $OutputDir -Force | Out-Null }; Copy-Item $apk "$OutputDir\$ApkFilename" -Force }
-    Start-Process -FilePath "$GradleDir\bin\gradle.bat" -ArgumentList "--stop" -WorkingDirectory $ProjectDir -NoNewWindow -Wait | Out-Null }
+    # Stop Gradle daemon with timeout
+    $stopProc = Start-Process -FilePath "$GradleDir\bin\gradle.bat" -ArgumentList "--stop" -WorkingDirectory $ProjectDir -NoNewWindow -PassThru
+    if (!$stopProc.WaitForExit(10000)) { $stopProc.Kill() }
+    # Kill any remaining Gradle/Java processes from this build
+    Get-Process -Name "java" -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "*android_build_env*" } | Stop-Process -Force -ErrorAction SilentlyContinue }
   else { Write-Error "Build Failed. Gradle exit code: $($p.ExitCode)" } }
 
 try { Show-Progress 0 "Starting..."; Clear-Env; Show-Progress 5 "Cleaning..."

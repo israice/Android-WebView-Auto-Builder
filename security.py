@@ -168,10 +168,11 @@ TRUSTED_PROXIES: set = {'127.0.0.1', '::1', '172.17.0.1'}
 
 
 def get_client_ip(request) -> str:
-    """Extract client IP with trusted proxy validation.
+    """Extract client IP address.
 
-    Only trusts X-Forwarded-For header if the request comes from
-    a known trusted proxy. Otherwise, uses remote_addr directly.
+    Uses remote_addr directly. X-Forwarded-For is NOT trusted
+    since server has direct access (no reverse proxy).
+    This prevents rate limit bypass via header spoofing.
 
     Args:
         request: Flask request object
@@ -179,20 +180,7 @@ def get_client_ip(request) -> str:
     Returns:
         Client IP address string
     """
-    remote_addr = request.remote_addr or '127.0.0.1'
-
-    # Check if request is from trusted proxy (Docker network)
-    is_trusted = (remote_addr in TRUSTED_PROXIES or
-                  remote_addr.startswith('172.') or
-                  remote_addr.startswith('10.'))
-
-    if is_trusted:
-        forwarded_for = request.headers.get('X-Forwarded-For')
-        if forwarded_for:
-            # Take the first (leftmost) IP - the original client
-            return forwarded_for.split(',')[0].strip()
-
-    return remote_addr
+    return request.remote_addr or '127.0.0.1'
 
 
 def sanitize_app_name(name: str) -> str:
@@ -239,8 +227,8 @@ def sanitize_app_name(name: str) -> str:
 def validate_url(url: str) -> str:
     """Validate URL format and block dangerous URLs.
 
-    Ensures URL uses http/https protocol and is not pointing
-    to internal/private network addresses.
+    Ensures URL uses HTTPS protocol only and is not pointing
+    to internal/private network addresses. HTTP is blocked for security.
 
     Args:
         url: Raw URL from user input
@@ -253,6 +241,8 @@ def validate_url(url: str) -> str:
 
     Example:
         safe_url = validate_url("https://example.com/page")
+        safe_url = validate_url("example.com")  # Auto-prefixes to https://example.com
+        validate_url("http://example.com")  # Raises ValueError (HTTP not allowed)
         validate_url("http://localhost")  # Raises ValueError
     """
     if not url:
@@ -260,15 +250,23 @@ def validate_url(url: str) -> str:
 
     url = str(url).strip()
 
+    # Auto-prefix https:// if no protocol specified (allows "example.com" input)
+    if '://' not in url:
+        url = 'https://' + url
+
     # Parse URL
     try:
         parsed = urlparse(url)
     except Exception:
         raise ValueError("Invalid URL format")
 
-    # Check scheme
-    if parsed.scheme not in ('http', 'https'):
-        raise ValueError("URL must use http or https protocol")
+    # Block HTTP explicitly (only HTTPS allowed)
+    if parsed.scheme == 'http':
+        raise ValueError("HTTP is not allowed for security reasons. Use HTTPS instead.")
+
+    # Check scheme - only HTTPS allowed for security
+    if parsed.scheme != 'https':
+        raise ValueError("URL must use HTTPS protocol")
 
     # Check for valid netloc (domain)
     if not parsed.netloc:
@@ -295,8 +293,8 @@ def validate_url(url: str) -> str:
             raise ValueError("Internal/private URLs are not allowed")
 
     # Block file:// and other dangerous schemes that might slip through
-    if '://' in url and not url.lower().startswith(('http://', 'https://')):
-        raise ValueError("Only http and https URLs are allowed")
+    if '://' in url and not url.lower().startswith('https://'):
+        raise ValueError("Only HTTPS URLs are allowed")
 
     return url
 

@@ -94,6 +94,12 @@ class UltraFastBuilder(APKBuilderBase):
     PLACEHOLDER_NAME: str = "PLACEHOLDER_APP_NAME__________________________"
     PLACEHOLDER_APPID: str = "app00000000"  # 8 zeros for unique hex suffix
 
+    # Files that affect template APK - if any change, template must be rebuilt
+    SOURCE_FILES: tuple = (
+        "linux_mac_build_apk.sh",
+        "windows_build_apk.ps1",
+    )
+
     def __init__(self, core_dir: str) -> None:
         """Initialize the ultra-fast builder.
 
@@ -103,21 +109,83 @@ class UltraFastBuilder(APKBuilderBase):
         super().__init__(core_dir)
         self.template_dir: str = os.path.join(core_dir, "apk_template_ultra")
 
+    def _compute_sources_hash(self) -> str:
+        """Compute SHA256 hash of all source files that affect the template.
+
+        Returns:
+            Hex string of combined hash of all source files.
+        """
+        combined_hash = hashlib.sha256()
+
+        for filename in self.SOURCE_FILES:
+            filepath = os.path.join(self.core_dir, filename)
+            if os.path.exists(filepath):
+                with open(filepath, 'rb') as f:
+                    combined_hash.update(f.read())
+
+        return combined_hash.hexdigest()
+
+    def _is_template_outdated(self, template_path: str) -> bool:
+        """Check if template needs rebuilding due to source changes.
+
+        Args:
+            template_path: Path to the template APK
+
+        Returns:
+            True if template is missing or sources have changed.
+        """
+        if not os.path.exists(template_path):
+            return True
+
+        hash_file = template_path + ".hash"
+        current_hash = self._compute_sources_hash()
+
+        if not os.path.exists(hash_file):
+            return True
+
+        with open(hash_file, 'r', encoding='utf-8') as f:
+            stored_hash = f.read().strip()
+
+        if stored_hash != current_hash:
+            logger.info(f"Source files changed (hash mismatch)")
+            return True
+
+        return False
+
+    def _save_sources_hash(self, template_path: str) -> None:
+        """Save current sources hash after successful template creation.
+
+        Args:
+            template_path: Path to the template APK
+        """
+        hash_file = template_path + ".hash"
+        current_hash = self._compute_sources_hash()
+
+        with open(hash_file, 'w', encoding='utf-8') as f:
+            f.write(current_hash)
+
+        logger.info(f"Saved sources hash to {hash_file}")
+
     def prepare_environment(self) -> None:
         """Prepare the build environment with template and keystore.
 
-        Creates the template APK if it doesn't exist and ensures
-        the debug keystore is available.
+        Creates the template APK if it doesn't exist, if sources changed,
+        or if build tools are missing. Ensures debug keystore is available.
         """
         os.makedirs(self.work_dir_base, exist_ok=True)
 
         output_dir = os.path.join(os.path.dirname(self.core_dir), "FINISHED_HERE")
-        template_exists = os.path.exists(os.path.join(output_dir, "TemplateUltra.apk"))
+        template_path = os.path.join(output_dir, "TemplateUltra.apk")
         tools_exist = self.get_build_tool("zipalign") is not None
+        template_outdated = self._is_template_outdated(template_path)
 
-        if not template_exists or not tools_exist:
-            logger.info("Generating Ultra Fast Template...")
+        if template_outdated or not tools_exist:
+            if template_outdated:
+                logger.info("Template outdated or missing, rebuilding...")
+            else:
+                logger.info("Build tools missing, rebuilding template...")
             self._create_template()
+            self._save_sources_hash(template_path)
 
         self.ensure_keystore()
 

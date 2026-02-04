@@ -108,14 +108,33 @@ requestAnimationFrame(render);
 
 let pollInterval;
 
-async function startBuild() {
-    const apkName = document.getElementById('apk-name').value;
-    const url = document.getElementById('url').value;
+function shakeContainer() {
+    const container = document.querySelector('.container');
+    container.style.animation = 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both';
+    setTimeout(() => container.style.animation = '', 500);
+}
 
+async function startBuild() {
+    const apkName = document.getElementById('apk-name').value.trim();
+    let url = document.getElementById('url').value.trim();
+
+    // Validate required fields
     if (!apkName || !url) {
-        const container = document.querySelector('.container');
-        container.style.animation = 'shake 0.5s cubic-bezier(.36,.07,.19,.97) both';
-        setTimeout(() => container.style.animation = '', 500);
+        shakeContainer();
+        return;
+    }
+
+    // Auto-prefix https:// if no protocol specified
+    if (!url.includes('://')) {
+        url = 'https://' + url;
+        document.getElementById('url').value = url; // Update input field
+    }
+
+    // Block HTTP (only HTTPS allowed)
+    if (url.toLowerCase().startsWith('http://')) {
+        alert('Only HTTPS URLs are allowed for security reasons.\n\nPlease use https:// instead of http://');
+        document.getElementById('url').focus();
+        shakeContainer();
         return;
     }
 

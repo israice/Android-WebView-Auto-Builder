@@ -1,3 +1,6 @@
+# WIN DEV RUN
+python server.py
+python ultra_fast_builder.py
 # PROD RUN
 docker compose down
 docker compose up -d --build
@@ -20,7 +23,7 @@ git push origin master --force
 
 # UPDATE
 git add .
-git commit -m "v0.0.29 - test 2"
+git commit -m "v0.0.30 - test 3"
 git push
 
 # DEV LOG
@@ -53,3 +56,4 @@ v0.0.26 - server update test
 v0.0.27 - added ROADMAP.md
 v0.0.28 - test 1
 v0.0.29 - test 2
+v0.0.30 - test 3
