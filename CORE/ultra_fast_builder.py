@@ -4,6 +4,21 @@ import subprocess
 import zipfile
 import tempfile
 
+# Cross-platform file locking
+try:
+    import fcntl
+    def lock_file(f):
+        fcntl.flock(f, fcntl.LOCK_EX)
+    def unlock_file(f):
+        fcntl.flock(f, fcntl.LOCK_UN)
+except ImportError:
+    # Windows fallback
+    import msvcrt
+    def lock_file(f):
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+    def unlock_file(f):
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+
 class UltraFastBuilder:
     PLACEHOLDER_NAME = "PLACEHOLDER_APP_NAME__________________________" # 50 chars
 
@@ -45,17 +60,26 @@ class UltraFastBuilder:
 
     def prepare_environment(self):
         """Ensures template exists with the PLACEHOLDER name."""
-        # Check if template APK exists
-        output_dir = os.path.join(os.path.dirname(self.core_dir), "FINISHED_HERE")
-        template_apk = os.path.join(output_dir, "TemplateUltra.apk")
-        
-        zipalign = self._get_build_tool("zipalign")
+        # Use file lock to prevent race condition with multiple workers
+        lock_file = os.path.join(self.work_dir_base, ".init.lock")
+        os.makedirs(self.work_dir_base, exist_ok=True)
 
-        if not os.path.exists(template_apk) or not zipalign:
-            print("Generating Ultra Fast Template...")
-            self._create_template()
-            
-        self._ensure_keystore()
+        with open(lock_file, 'w') as f:
+            lock_file(f)  # Exclusive lock
+            try:
+                # Check if template APK exists
+                output_dir = os.path.join(os.path.dirname(self.core_dir), "FINISHED_HERE")
+                template_apk = os.path.join(output_dir, "TemplateUltra.apk")
+
+                zipalign = self._get_build_tool("zipalign")
+
+                if not os.path.exists(template_apk) or not zipalign:
+                    print("Generating Ultra Fast Template...")
+                    self._create_template()
+
+                self._ensure_keystore()
+            finally:
+                unlock_file(f)
 
     def _ensure_keystore(self):
         if os.path.exists(self.keystore_path):

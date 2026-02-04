@@ -30,7 +30,7 @@ from CORE.ultra_fast_builder import UltraFastBuilder
 # Initialize Fast Builder
 fast_builder = UltraFastBuilder(CORE_DIR)
 
-# Start preparation in background
+# Initialize builder (with --preload, this runs once before workers fork)
 def prepare_builder():
     try:
         print("Initializing Ultra Fast APK Builder environment...")
@@ -39,7 +39,7 @@ def prepare_builder():
     except Exception as e:
         print(f"Failed to initialize builder: {e}")
 
-threading.Thread(target=prepare_builder).start()
+prepare_builder()
 
 def run_build(job_id, apk_name, url):
     jobs[job_id]['status'] = 'running'

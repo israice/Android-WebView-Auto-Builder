@@ -110,7 +110,7 @@ function extract_file() {
     echo "Extracting $file..."
     mkdir -p "$dest"
     if [[ "$file" == *.zip ]]; then
-        unzip -q "$file" -d "$dest"
+        unzip -o -q "$file" -d "$dest"  # -o = overwrite without prompting
     else
         tar -xf "$file" -C "$dest"
     fi
@@ -591,7 +591,12 @@ trap cleanup EXIT
 
 echo "Starting build process..."
 echo "PROGRESS: 0"
-rm -rf "$WORK_DIR"
+
+# Only clean work dir if it's job-specific (has JOB_ID)
+# Base work dir is reused to avoid re-downloading SDK
+if [ -n "$JOB_ID" ]; then
+    rm -rf "$WORK_DIR"
+fi
 mkdir -p "$WORK_DIR"
 
 initialize_java
