@@ -15,6 +15,9 @@ import hashlib
 import hmac
 import os
 import signal
+
+from dotenv import load_dotenv
+load_dotenv()
 import subprocess
 import sys
 import threading
@@ -353,7 +356,7 @@ def webhook() -> Tuple[str, int]:
             logger.info("Git update successful, reloading workers...")
             # Send SIGHUP to PID 1 (gunicorn master) for graceful reload
             # Requires 'exec gunicorn' in docker-compose.yml to make gunicorn PID 1
-            os.kill(1, signal.SIGHUP)
+            os.kill(1, signal.SIGHUP) # type: ignore
         except subprocess.TimeoutExpired:
             logger.error("Git operation timed out")
             return "Update timed out", 500
