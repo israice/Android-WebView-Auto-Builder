@@ -164,6 +164,14 @@ class APKBuilderBase(ABC):
             check=True, capture_output=True
         )
 
+    def get_apksigner(self) -> Optional[str]:
+        """Get path to apksigner tool with platform-specific fallback.
+
+        Returns:
+            Path to apksigner executable, or None if not found
+        """
+        return self.get_build_tool("apksigner") or self.get_build_tool("apksigner.bat")
+
     def sign_apk(self, input_apk: str, output_apk: str) -> None:
         """Sign APK with keystore.
 
@@ -178,7 +186,7 @@ class APKBuilderBase(ABC):
             FileNotFoundError: If apksigner not found in SDK
             subprocess.CalledProcessError: If signing fails
         """
-        apksigner = self.get_build_tool("apksigner") or self.get_build_tool("apksigner.bat")
+        apksigner = self.get_apksigner()
         if not apksigner:
             raise FileNotFoundError("apksigner not found in SDK")
 
@@ -191,9 +199,11 @@ class APKBuilderBase(ABC):
             env["PATH"] = jdk_bin + os.pathsep + env["PATH"]
 
         try:
+            # Pass password via stdin to avoid exposure in process list (ps aux)
             subprocess.run(
                 [apksigner, "sign", "--ks", self.keystore_path,
-                 "--ks-pass", f"pass:{ks_pass}", "--out", output_apk, input_apk],
+                 "--ks-pass", "stdin", "--out", output_apk, input_apk],
+                input=f"{ks_pass}\n".encode(),
                 check=True, capture_output=True, env=env
             )
         except subprocess.CalledProcessError as e:

@@ -163,6 +163,38 @@ class RateLimiter:
         return removed
 
 
+# Trusted proxy IP addresses for X-Forwarded-For validation
+TRUSTED_PROXIES: set = {'127.0.0.1', '::1', '172.17.0.1'}
+
+
+def get_client_ip(request) -> str:
+    """Extract client IP with trusted proxy validation.
+
+    Only trusts X-Forwarded-For header if the request comes from
+    a known trusted proxy. Otherwise, uses remote_addr directly.
+
+    Args:
+        request: Flask request object
+
+    Returns:
+        Client IP address string
+    """
+    remote_addr = request.remote_addr or '127.0.0.1'
+
+    # Check if request is from trusted proxy (Docker network)
+    is_trusted = (remote_addr in TRUSTED_PROXIES or
+                  remote_addr.startswith('172.') or
+                  remote_addr.startswith('10.'))
+
+    if is_trusted:
+        forwarded_for = request.headers.get('X-Forwarded-For')
+        if forwarded_for:
+            # Take the first (leftmost) IP - the original client
+            return forwarded_for.split(',')[0].strip()
+
+    return remote_addr
+
+
 def sanitize_app_name(name: str) -> str:
     """Sanitize app name to prevent command injection.
 
@@ -358,7 +390,7 @@ SECURITY_HEADERS = {
     'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
     'Content-Security-Policy': (
         "default-src 'self'; "
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
+        "script-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; "
         "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
         "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
         "img-src 'self' data:; "

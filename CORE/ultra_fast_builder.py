@@ -281,30 +281,10 @@ class UltraFastBuilder(APKBuilderBase):
         )
         cb(80)
 
-        # Sign APK
-        apksigner = self.get_build_tool("apksigner") or self.get_build_tool("apksigner.bat")
-        if not apksigner:
-            raise FileNotFoundError("apksigner not found in SDK")
-
+        # Sign APK (uses inherited method from APKBuilderBase)
         final_apk_name = app_name if app_name.endswith(".apk") else f"{app_name}.apk"
         final_apk_path = os.path.join(output_dir, final_apk_name)
-
-        env = os.environ.copy()
-        jdk_bin = os.path.join(self.jdk_dir, "bin")
-        if os.path.exists(jdk_bin):
-            env["JAVA_HOME"] = self.jdk_dir
-            env["PATH"] = jdk_bin + os.pathsep + env["PATH"]
-
-        try:
-            ks_pass = os.environ.get('KEYSTORE_PASSWORD', 'android')
-            subprocess.run(
-                [apksigner, "sign", "--ks", self.keystore_path,
-                 "--ks-pass", f"pass:{ks_pass}", "--out", final_apk_path, aligned_apk],
-                check=True, capture_output=True, env=env
-            )
-        except subprocess.CalledProcessError as e:
-            logger.error(f"APKSigner failed: {e.stderr.decode('utf-8', errors='ignore')}")
-            raise
+        self.sign_apk(aligned_apk, final_apk_path)
 
         cb(100)
 

@@ -20,7 +20,7 @@ git push origin master --force
 
 # UPDATE
 git add .
-git commit -m "v0.0.26 - server update test"
+git commit -m "v0.0.27 - added ROADMAP.md"
 git push
 
 # DEV LOG
@@ -50,3 +50,4 @@ v0.0.23 - full file size refactoring
 v0.0.24 - project upgraded with audit
 v0.0.25 - added support for multi APK 
 v0.0.26 - server update test 
+v0.0.27 - added ROADMAP.md

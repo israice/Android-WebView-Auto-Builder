@@ -1,5 +1,9 @@
 import re
 import os
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def sync_version():
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -15,7 +19,7 @@ def sync_version():
 
     match = re.search(r'(v\d+\.\d+\.\d+)', last_line)
     if not match:
-        print("Error: No version found in VERSION.md")
+        logger.error("No version found in VERSION.md")
         return
     new_version = match.group(1)
 
@@ -27,13 +31,13 @@ def sync_version():
     badge_match = re.search(badge_pattern, html_content)
 
     if not badge_match:
-        print("Error: version-badge not found in index.html")
+        logger.error("version-badge not found in index.html")
         return
 
     current_version = badge_match.group(2)
 
     if current_version == new_version:
-        print(f"Version already up to date: {current_version}")
+        logger.info(f"Version already up to date: {current_version}")
         return
 
     # Update HTML
@@ -41,7 +45,7 @@ def sync_version():
     with open(html_file, 'w', encoding='utf-8') as f:
         f.write(new_html)
 
-    print(f"Updated version: {current_version} -> {new_version}")
+    logger.info(f"Updated version: {current_version} -> {new_version}")
 
 if __name__ == '__main__':
     sync_version()

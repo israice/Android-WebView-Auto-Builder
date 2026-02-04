@@ -2,5 +2,5 @@
 flask==3.0.0
 gunicorn==23.0.0
 
-# HTTP requests (used by fast_builder.py for downloading apktool)
-requests>=2.31.0,<3.0.0
+# HTTP requests
+requests==2.32.3
