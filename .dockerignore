@@ -1,0 +1,28 @@
+# Build environment (large files - SDK, JDK, Gradle)
+android_build_env/
+
+# APK templates and tools
+CORE/apk_template/
+CORE/apk_template_ultra/
+CORE/apktool.jar
+
+# Build outputs
+FINISHED_HERE/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# IDE
+.vscode/
+
+# Git
+.git/
+
+# Environment and config
+.env
+
+# Documentation (not needed in container)
+*.md
+LICENSE
