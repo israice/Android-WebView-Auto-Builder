@@ -20,7 +20,7 @@ git push origin master --force
 
 # UPDATE
 git add .
-git commit -m "v0.0.25 - added support for multi APK"
+git commit -m "v0.0.25 - test 1"
 git push
 
 # DEV LOG

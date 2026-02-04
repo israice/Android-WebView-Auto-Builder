@@ -55,7 +55,14 @@ jobs = ThreadSafeJobs()
 # Rate limiter: 10 requests per minute per IP
 rate_limiter = RateLimiter(max_requests=10, window_seconds=60)
 
-
+# Sync version badge on module load (works with gunicorn)
+try:
+    subprocess.run(["python3", "TOOLS/sync_version.py"], capture_output=True)
+except Exception:
+    try:
+        subprocess.run(["python", "TOOLS/sync_version.py"], capture_output=True)
+    except Exception:
+        pass
 
 from CORE.ultra_fast_builder import UltraFastBuilder
 
