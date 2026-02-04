@@ -95,9 +95,18 @@ class UltraFastBuilder(APKBuilderBase):
     PLACEHOLDER_APPID: str = "app00000000"  # 8 zeros for unique hex suffix
 
     # Files that affect template APK - if any change, template must be rebuilt
+    # Paths relative to CORE directory
     SOURCE_FILES: tuple = (
         "linux_mac_build_apk.sh",
         "windows_build_apk.ps1",
+    )
+
+    # Project files that affect template - paths relative to project root
+    PROJECT_SOURCE_FILES: tuple = (
+        "android_build_env/project/app/build.gradle",
+        "android_build_env/project/app/src/main/AndroidManifest.xml",
+        "android_build_env/project/app/src/main/java/com/aspect/webview/MainActivity.java",
+        "android_build_env/project/app/src/main/res/values/styles.xml",
     )
 
     def __init__(self, core_dir: str) -> None:
@@ -117,8 +126,17 @@ class UltraFastBuilder(APKBuilderBase):
         """
         combined_hash = hashlib.sha256()
 
+        # Hash CORE build scripts
         for filename in self.SOURCE_FILES:
             filepath = os.path.join(self.core_dir, filename)
+            if os.path.exists(filepath):
+                with open(filepath, 'rb') as f:
+                    combined_hash.update(f.read())
+
+        # Hash project source files (relative to project root)
+        project_root = os.path.dirname(self.core_dir)
+        for filename in self.PROJECT_SOURCE_FILES:
+            filepath = os.path.join(project_root, filename)
             if os.path.exists(filepath):
                 with open(filepath, 'rb') as f:
                     combined_hash.update(f.read())
