@@ -8,7 +8,7 @@ This module provides security-related utilities including:
 - Security headers for HTTP responses
 
 Example:
-    from security import ThreadSafeJobs, sanitize_app_name, validate_url
+    from BACKEND.security import ThreadSafeJobs, sanitize_app_name, validate_url
 
     jobs = ThreadSafeJobs()
     jobs['abc-123'] = {'status': 'running'}
@@ -170,17 +170,19 @@ TRUSTED_PROXIES: set = {'127.0.0.1', '::1', '172.17.0.1'}
 def get_client_ip(request) -> str:
     """Extract client IP address.
 
-    Uses remote_addr directly. X-Forwarded-For is NOT trusted
+    Uses client host directly. X-Forwarded-For is NOT trusted
     since server has direct access (no reverse proxy).
     This prevents rate limit bypass via header spoofing.
 
     Args:
-        request: Flask request object
+        request: FastAPI/Starlette Request object
 
     Returns:
         Client IP address string
     """
-    return request.remote_addr or '127.0.0.1'
+    if request.client:
+        return request.client.host
+    return '127.0.0.1'
 
 
 def sanitize_app_name(name: str) -> str:
@@ -398,21 +400,16 @@ SECURITY_HEADERS = {
 
 
 def add_security_headers(response: Any) -> Any:
-    """Add security headers to a Flask response.
+    """Add security headers to a response.
 
     Adds standard security headers including CSP, X-Frame-Options,
     and removes potentially revealing server headers.
 
     Args:
-        response: Flask Response object
+        response: Response object
 
     Returns:
         Modified response with security headers added
-
-    Example:
-        @app.after_request
-        def after_request(response):
-            return add_security_headers(response)
     """
     for header, value in SECURITY_HEADERS.items():
         response.headers[header] = value

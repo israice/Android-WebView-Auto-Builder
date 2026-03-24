@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
-ROOT_DIR="$SCRIPT_DIR/.." && SETTINGS_FILE="$ROOT_DIR/settings.yaml"
+ROOT_DIR="$SCRIPT_DIR/.." && SETTINGS_FILE="$ROOT_DIR/SETTINGS.py"
 WORK_DIR_BASE="$ROOT_DIR/android_build_env" && WORK_DIR="$WORK_DIR_BASE"
-OUTPUT_DIR="$ROOT_DIR/FINISHED_HERE"
+OUTPUT_DIR="$ROOT_DIR/DATA"
 while [[ $# -gt 0 ]]; do case $1 in --url) APP_URL=$2;shift;; --name) APK_FILENAME=$2;shift;; --id) JOB_ID=$2;shift;; --no-cleanup) NO_CLEANUP=1;; *) echo "Unknown: $1";exit 1;; esac;shift;done
 if [ -z "$APP_URL" ] || [ -z "$APK_FILENAME" ]; then
     [ -f "$SETTINGS_FILE" ] && { [ -z "$APP_URL" ] && APP_URL=$(grep "redirect_to_url" "$SETTINGS_FILE"|cut -d'"' -f2); [ -z "$APK_FILENAME" ] && APK_FILENAME=$(grep "apk_name" "$SETTINGS_FILE"|cut -d'"' -f2); }

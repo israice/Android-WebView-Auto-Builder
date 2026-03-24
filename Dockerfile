@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --no-cache-dir flask requests gunicorn python-dotenv
+RUN pip3 install --no-cache-dir fastapi uvicorn[standard] jinja2 requests python-dotenv
 
 # Create non-root user for security
 RUN useradd -m -u 1000 -s /bin/bash appuser

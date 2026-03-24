@@ -22,15 +22,15 @@
 </div>
 
 <div align="center">
-  <img src="CORE/screenshot1.png" alt="Dashboard" width="600">
+  <img src="TOOLS/SCREENSHOTS/v0.0.31-A.png" alt="Dashboard" width="600">
 </div>
 
 <div align="center">
-  <img src="CORE/screenshot2.png" alt="Building" width="600">
+  <img src="TOOLS/SCREENSHOTS/v0.0.31-B.png" alt="Building" width="600">
 </div>
 
 <div align="center">
-  <img src="CORE/screenshot3.png" alt="Success" width="600">
+  <img src="TOOLS/SCREENSHOTS/v0.0.31-C.png" alt="Success" width="600">
 </div>
 
 ## 🚀 Live Website
@@ -55,12 +55,12 @@ This tool automates the entire toolchain and uses **Binary Patching** to generat
 
 #### 🪟 Windows (Python)
 ```powershell
-python server.py
+python run.py
 ```
 
 #### 🐧 Linux / 🍎 macOS (Python)
 ```bash
-python3 server.py
+python3 run.py
 ```
 
 #### 🐳 Docker (Recommended)

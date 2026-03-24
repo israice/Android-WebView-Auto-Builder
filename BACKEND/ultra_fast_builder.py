@@ -5,7 +5,7 @@ by modifying a pre-built template, avoiding full recompilation.
 Build times are typically under 1 second.
 
 Example:
-    builder = UltraFastBuilder('/path/to/CORE')
+    builder = UltraFastBuilder('/path/to/BACKEND')
     builder.prepare_environment()
     apk_path = builder.build('https://example.com', 'MyApp', 'job-123')
 """
@@ -18,7 +18,7 @@ import logging
 import hashlib
 from typing import Optional, Callable
 
-from CORE.builder_base import APKBuilderBase
+from BACKEND.builder_base import APKBuilderBase
 
 # Platform-specific file locking
 try:
@@ -77,7 +77,7 @@ class UltraFastBuilder(APKBuilderBase):
         template_dir: Path to APK template directory
 
     Example:
-        builder = UltraFastBuilder('/path/to/CORE')
+        builder = UltraFastBuilder('/path/to/BACKEND')
         builder.prepare_environment()
 
         def on_progress(percent):
@@ -95,7 +95,7 @@ class UltraFastBuilder(APKBuilderBase):
     PLACEHOLDER_APPID: str = "app00000000"  # 8 zeros for unique hex suffix
 
     # Files that affect template APK - if any change, template must be rebuilt
-    # Paths relative to CORE directory
+    # Paths relative to BACKEND directory
     SOURCE_FILES: tuple = (
         "linux_mac_build_apk.sh",
         "windows_build_apk.ps1",
@@ -113,7 +113,7 @@ class UltraFastBuilder(APKBuilderBase):
         """Initialize the ultra-fast builder.
 
         Args:
-            core_dir: Path to CORE directory containing build scripts
+            core_dir: Path to BACKEND directory containing build scripts
         """
         super().__init__(core_dir)
         self.template_dir: str = os.path.join(core_dir, "apk_template_ultra")
@@ -126,7 +126,7 @@ class UltraFastBuilder(APKBuilderBase):
         """
         combined_hash = hashlib.sha256()
 
-        # Hash CORE build scripts
+        # Hash BACKEND build scripts
         for filename in self.SOURCE_FILES:
             filepath = os.path.join(self.core_dir, filename)
             if os.path.exists(filepath):
@@ -192,7 +192,7 @@ class UltraFastBuilder(APKBuilderBase):
         """
         os.makedirs(self.work_dir_base, exist_ok=True)
 
-        output_dir = os.path.join(os.path.dirname(self.core_dir), "FINISHED_HERE")
+        output_dir = os.path.join(os.path.dirname(self.core_dir), "DATA")
         template_path = os.path.join(output_dir, "TemplateUltra.apk")
         tools_exist = self.get_build_tool("zipalign") is not None
         template_outdated = self._is_template_outdated(template_path)
@@ -213,13 +213,13 @@ class UltraFastBuilder(APKBuilderBase):
         Runs the platform-specific build script to create a template
         APK that can be patched for each build.
         """
-        output_dir = os.path.join(os.path.dirname(self.core_dir), "FINISHED_HERE")
+        output_dir = os.path.join(os.path.dirname(self.core_dir), "DATA")
         placeholder_filename = self.PLACEHOLDER_NAME + ".apk"
         dst = os.path.join(output_dir, "TemplateUltra.apk")
 
         if self.is_windows:
             script_path = os.path.join(self.core_dir, "windows_build_apk.ps1")
-            settings_path = os.path.join(self.core_dir, "..", "settings.yaml")
+            settings_path = os.path.join(self.core_dir, "..", "SETTINGS.py")
 
             # Read original settings with proper file handling
             original_settings: Optional[str] = None
@@ -229,7 +229,7 @@ class UltraFastBuilder(APKBuilderBase):
 
             # Write temporary settings
             with open(settings_path, 'w', encoding='utf-8') as sf:
-                sf.write(f'redirect_to_url: "TEMPLATE_URL"\napk_name: "{placeholder_filename}"')
+                sf.write(f'redirect_to_url = "TEMPLATE_URL"\napk_name = "{placeholder_filename}"\n')
 
             try:
                 # Don't capture output so user can see progress
@@ -306,7 +306,7 @@ class UltraFastBuilder(APKBuilderBase):
         cb = progress_callback or (lambda x: None)
         cb(10)
 
-        output_dir = os.path.join(os.path.dirname(self.core_dir), "FINISHED_HERE")
+        output_dir = os.path.join(os.path.dirname(self.core_dir), "DATA")
         template_apk = os.path.join(output_dir, "TemplateUltra.apk")
         temp_apk = os.path.join(self.work_dir_base, f"temp_{job_id}.apk")
         unsigned_apk = os.path.join(self.work_dir_base, f"unsigned_{job_id}.apk")

@@ -1,4 +1,4 @@
-"""Flask web server for Android-WebView-Auto-Builder.
+"""FastAPI web server for Android-WebView-Auto-Builder.
 
 This module provides the REST API for creating Android APKs from URLs.
 It handles job management, build orchestration, and file delivery.
@@ -6,8 +6,8 @@ It handles job management, build orchestration, and file delivery.
 Endpoints:
     GET /: Web dashboard
     POST /create: Create new APK build job
-    GET /status/<job_id>: Check job status
-    GET /download/<job_id>/<filename>: Download completed APK
+    GET /status/{job_id}: Check job status
+    GET /download/{job_id}/{filename}: Download completed APK
     POST /webhook: GitHub webhook for auto-update
 """
 
@@ -23,19 +23,23 @@ import sys
 import threading
 import time
 import uuid
-from typing import Optional, Dict, Any, Tuple, Union
+from typing import Optional, Dict, Any
 
-from flask import Flask, render_template, request, jsonify, send_file, Response
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
 
-from logging_config import setup_logging, get_logger
-from security import (
+from BACKEND.logging_config import setup_logging, get_logger
+from BACKEND.security import (
     ThreadSafeJobs,
     RateLimiter,
     sanitize_app_name,
     validate_url,
     secure_filename,
     validate_file_path,
-    add_security_headers,
+    SECURITY_HEADERS,
     get_client_ip,
 )
 
@@ -73,11 +77,15 @@ def validate_environment() -> None:
 # Validate environment before anything else
 validate_environment()
 
-app = Flask(__name__)
+app = FastAPI()
+
+# Mount static files and templates
+app.mount("/static", StaticFiles(directory="FRONTEND"), name="static")
+templates = Jinja2Templates(directory="FRONTEND")
 
 # Configuration
-CORE_DIR = os.path.join(os.getcwd(), 'CORE')
-OUTPUT_DIR = os.path.join(os.getcwd(), 'FINISHED_HERE')
+CORE_DIR = os.path.join(os.getcwd(), 'BACKEND')
+OUTPUT_DIR = os.path.join(os.getcwd(), 'DATA')
 BUILD_SCRIPT = os.path.join(CORE_DIR, 'linux_mac_build_apk.sh')
 
 # Webhook configuration for auto-update (already validated)
@@ -87,11 +95,11 @@ WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 jobs = ThreadSafeJobs()
 
 # Rate limiter: 10 requests per minute per IP
-# NOTE: In-memory rate limiting works only with single gunicorn worker.
+# NOTE: In-memory rate limiting works only with single uvicorn worker.
 # docker-compose.yml uses --workers 1 intentionally.
 rate_limiter = RateLimiter(max_requests=10, window_seconds=60)
 
-# Sync version badge on module load (works with gunicorn)
+# Sync version badge on module load
 try:
     subprocess.run(["python3", "TOOLS/sync_version.py"], capture_output=True, timeout=10)
 except Exception as e:
@@ -101,12 +109,12 @@ except Exception as e:
     except Exception as e:
         logger.debug(f"Version sync with python failed: {e}")
 
-from CORE.ultra_fast_builder import UltraFastBuilder
+from BACKEND.ultra_fast_builder import UltraFastBuilder
 
 # Initialize Fast Builder
 fast_builder = UltraFastBuilder(CORE_DIR)
 
-# Initialize builder (with --preload, this runs once before workers fork)
+# Initialize builder
 def prepare_builder() -> None:
     """Initialize the APK builder environment.
 
@@ -130,28 +138,36 @@ except KeyboardInterrupt:
     sys.exit(0)
 
 
-@app.before_request
-def before_request_handler():
-    """Rate limiting for sensitive endpoints."""
-    # Endpoints that should be rate limited
-    rate_limited = [
-        ('/create', 'POST'),
-        ('/download', 'GET'),
-    ]
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Middleware to add security headers and enforce rate limiting."""
 
-    for path_prefix, method in rate_limited:
-        if request.path.startswith(path_prefix) and request.method == method:
-            client_ip = get_client_ip(request)
-            if not rate_limiter.is_allowed(client_ip):
-                logger.warning(f"Rate limit exceeded for IP: {client_ip}")
-                return jsonify({'error': 'Rate limit exceeded. Try again later.'}), 429
-            break
+    async def dispatch(self, request: Request, call_next):
+        # Rate limiting for sensitive endpoints
+        rate_limited = [
+            ('/create', 'POST'),
+            ('/download', 'GET'),
+        ]
 
+        for path_prefix, method in rate_limited:
+            if request.url.path.startswith(path_prefix) and request.method == method:
+                client_ip = get_client_ip(request)
+                if not rate_limiter.is_allowed(client_ip):
+                    logger.warning(f"Rate limit exceeded for IP: {client_ip}")
+                    return JSONResponse({'error': 'Rate limit exceeded. Try again later.'}, status_code=429)
+                break
 
-@app.after_request
-def after_request_handler(response):
-    """Add security headers to all responses."""
-    return add_security_headers(response)
+        response = await call_next(request)
+
+        # Add security headers
+        for header, value in SECURITY_HEADERS.items():
+            response.headers[header] = value
+        # Remove potentially revealing headers
+        if 'server' in response.headers:
+            del response.headers['server']
+
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 def run_build(job_id: str, apk_name: str, url: str) -> None:
@@ -252,24 +268,24 @@ def delete_file_later(filepath: str, delay: int = 3) -> None:
 
     threading.Thread(target=delayed_delete, daemon=True).start()
 
-@app.route('/favicon.ico')
-def favicon():
-    return '', 204
+@app.get('/favicon.ico', status_code=204)
+async def favicon():
+    return Response(status_code=204)
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+@app.get('/', response_class=HTMLResponse)
+async def index(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
-@app.route('/create', methods=['POST'])
-def create():
-    data = request.json or {}
+@app.post('/create')
+async def create(request: Request):
+    data = await request.json()
 
     # Validate and sanitize inputs
     try:
         apk_name = sanitize_app_name(data.get('apk_name', ''))
         url = validate_url(data.get('url', ''))
     except ValueError as e:
-        return jsonify({'error': str(e)}), 400
+        return JSONResponse({'error': str(e)}, status_code=400)
 
     job_id = str(uuid.uuid4())
     jobs[job_id] = {
@@ -278,34 +294,34 @@ def create():
         'url': url,
         'start_time': time.time()
     }
-    
+
     thread = threading.Thread(target=run_build, args=(job_id, apk_name, url))
     thread.start()
-    
-    return jsonify({'job_id': job_id})
 
-@app.route('/status/<job_id>')
-def status(job_id):
+    return JSONResponse({'job_id': job_id})
+
+@app.get('/status/{job_id}')
+async def status(job_id: str):
     job = jobs.get(job_id)
     if not job:
-        return jsonify({'error': 'Job not found'}), 404
-        
+        return JSONResponse({'error': 'Job not found'}, status_code=404)
+
     response = {
         'status': job['status'],
         'progress': job.get('progress', 0)
     }
-    
+
     if job['status'] == 'completed':
         response['download_url'] = f"/download/{job_id}/{job['filename']}"
 
-    return jsonify(response)
+    return JSONResponse(response)
 
-@app.route('/download/<job_id>/<filename>')
-def download(job_id, filename):
+@app.get('/download/{job_id}/{filename}')
+async def download(job_id: str, filename: str):
     # Verify job exists and is completed
     job = jobs.get(job_id)
     if not job or job.get('status') != 'completed':
-        return jsonify({'error': 'Job not found or not completed'}), 404
+        return JSONResponse({'error': 'Job not found or not completed'}, status_code=404)
 
     # Validate filename matches expected filename for this job
     expected_filename = job.get('filename')
@@ -313,40 +329,38 @@ def download(job_id, filename):
     try:
         safe_name = secure_filename(filename)
         if safe_name != expected_filename:
-            return jsonify({'error': 'Access denied'}), 403
+            return JSONResponse({'error': 'Access denied'}, status_code=403)
 
         filepath = os.path.join(OUTPUT_DIR, safe_name)
         filepath = validate_file_path(filepath, OUTPUT_DIR)
     except ValueError:
-        return jsonify({'error': 'Access denied'}), 403
+        return JSONResponse({'error': 'Access denied'}, status_code=403)
 
     if not os.path.exists(filepath):
-        return jsonify({'error': 'File not found'}), 404
+        return JSONResponse({'error': 'File not found'}, status_code=404)
 
     # Schedule deletion after download
     delete_file_later(filepath)
 
-    return send_file(filepath, as_attachment=True)
+    return FileResponse(filepath, filename=safe_name)
 
-@app.route("/webhook", methods=["POST"])
-def webhook() -> Tuple[str, int]:
+@app.post("/webhook")
+async def webhook(request: Request):
     """Handle GitHub webhook for auto-update.
 
     Verifies webhook signature and triggers git pull on valid push events.
-    Automatically reloads gunicorn workers after update.
-
-    Returns:
-        Tuple of response message and HTTP status code
+    Automatically reloads uvicorn workers after update.
     """
+    body = await request.body()
     signature = request.headers.get("X-Hub-Signature-256", "")
-    if not verify_signature(request.data, signature):
-        return "Forbidden", 403
+    if not verify_signature(body, signature):
+        return Response("Forbidden", status_code=403)
 
     if request.headers.get("X-GitHub-Event") == "push":
-        payload = request.get_json(silent=True) or {}
+        payload = await request.json()
         ref = payload.get("ref")
         if ref != "refs/heads/master":
-            return "Ignored", 200
+            return Response("Ignored", status_code=200)
 
         logger.info("Webhook received: updating from master...")
         try:
@@ -354,21 +368,22 @@ def webhook() -> Tuple[str, int]:
             subprocess.run(["git", "reset", "--hard", "origin/master"], cwd="/app", check=True, capture_output=True, timeout=30)
             subprocess.run(["python3", "TOOLS/sync_version.py"], cwd="/app", check=True, capture_output=True, timeout=30)
             logger.info("Git update successful, reloading workers...")
-            # Send SIGHUP to PID 1 (gunicorn master) for graceful reload
-            # Requires 'exec gunicorn' in docker-compose.yml to make gunicorn PID 1
+            # Send SIGHUP to PID 1 for graceful reload
             os.kill(1, signal.SIGHUP) # type: ignore
         except subprocess.TimeoutExpired:
             logger.error("Git operation timed out")
-            return "Update timed out", 500
+            return Response("Update timed out", status_code=500)
         except subprocess.CalledProcessError as e:
             logger.error(f"Git update failed: {e.stderr.decode() if e.stderr else str(e)}")
-            return "Update failed", 500
+            return Response("Update failed", status_code=500)
         except OSError as e:
             logger.error(f"Failed to reload workers: {e}")
-            return "Reload failed", 500
-    return "OK", 200
+            return Response("Reload failed", status_code=500)
+    return Response("OK", status_code=200)
 
 if __name__ == '__main__':
+    import uvicorn
+
     # Sync version badge on startup
     subprocess.run(["python", "TOOLS/sync_version.py"])
 
@@ -376,4 +391,4 @@ if __name__ == '__main__':
     if not os.path.exists(OUTPUT_DIR):
         os.makedirs(OUTPUT_DIR)
 
-    app.run(host='0.0.0.0', port=5001)
+    uvicorn.run(app, host='0.0.0.0', port=5001)

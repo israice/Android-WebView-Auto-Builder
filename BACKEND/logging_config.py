@@ -4,7 +4,7 @@ This module provides a consistent logging setup across all application modules,
 with configurable log levels, formatters, and output handlers.
 
 Example:
-    from logging_config import setup_logging, get_logger
+    from BACKEND.logging_config import setup_logging, get_logger
 
     setup_logging(level=logging.DEBUG)
     logger = get_logger(__name__)
@@ -51,7 +51,7 @@ def setup_logging(
     )
 
     # Reduce noise from third-party libraries
-    logging.getLogger('werkzeug').setLevel(logging.WARNING)
+    logging.getLogger('uvicorn').setLevel(logging.WARNING)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
 
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Release script for Android-WebView-Auto-Builder
-# Usage: ./scripts/release.sh v0.0.24 "Release description"
+# Usage: ./BACKEND/release.sh v0.0.24 "Release description"
 
 set -e
 
@@ -8,8 +8,8 @@ VERSION=$1
 DESCRIPTION=$2
 
 if [ -z "$VERSION" ]; then
-    echo "Usage: ./scripts/release.sh <version> [description]"
-    echo "Example: ./scripts/release.sh v0.0.24 'Added new feature'"
+    echo "Usage: ./BACKEND/release.sh <version> [description]"
+    echo "Example: ./BACKEND/release.sh v0.0.24 'Added new feature'"
     exit 1
 fi
 
@@ -41,7 +41,7 @@ if [ -f "TOOLS/sync_version.py" ]; then
 fi
 
 # Git operations
-git add VERSION.md templates/index.html 2>/dev/null || git add VERSION.md
+git add VERSION.md FRONTEND/index.html 2>/dev/null || git add VERSION.md
 git commit -m "$VERSION - $DESCRIPTION"
 git tag -a "$VERSION" -m "$DESCRIPTION"
 

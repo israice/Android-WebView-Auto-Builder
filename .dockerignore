@@ -2,12 +2,12 @@
 android_build_env/
 
 # APK templates and tools
-CORE/apk_template/
-CORE/apk_template_ultra/
-CORE/apktool.jar
+BACKEND/apk_template/
+BACKEND/apk_template_ultra/
+BACKEND/apktool.jar
 
 # Build outputs
-FINISHED_HERE/
+DATA/
 
 # Python
 __pycache__/

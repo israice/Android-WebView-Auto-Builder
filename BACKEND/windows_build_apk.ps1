@@ -2,11 +2,11 @@ param([switch]$NoCleanup)
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8; $OutputEncoding = [System.Text.Encoding]::UTF8
 $ErrorActionPreference = "Stop"; $ProgressPreference = 'SilentlyContinue'
 
-$SettingsPath = "$PSScriptRoot\..\settings.yaml"
+$SettingsPath = "$PSScriptRoot\..\SETTINGS.py"
 if (Test-Path $SettingsPath) { $Settings = Get-Content $SettingsPath; $AppUrl = ($Settings -match "redirect_to_url").Split('"')[1]; $ApkFilename = ($Settings -match "apk_name").Split('"')[1]; $AppName = $ApkFilename.Replace(".apk", "") }
 else { $AppUrl = "https://crazywalk.weforks.org/"; $AppName = "CrazyWalk"; $ApkFilename = "CrazyWalk.apk" }
 $Namespace = "com.aspect.webview"; $ApplicationId = "com.aspect.app00000000"; $SdkVersion = "33"; $BuildToolsVersion = "33.0.1"
-$WorkDir = "$PSScriptRoot\..\android_build_env"; $OutputDir = "$PSScriptRoot\..\FINISHED_HERE"
+$WorkDir = "$PSScriptRoot\..\android_build_env"; $OutputDir = "$PSScriptRoot\..\DATA"
 $SdkDir = "$WorkDir\sdk"; $ProjectDir = "$WorkDir\project"; $JdkDir = "$WorkDir\jdk"; $CurlDir = "$WorkDir\curl"
 $CmdLineToolsUrl = "https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip"
 $JdkUrl = "https://aka.ms/download-jdk/microsoft-jdk-17-windows-x64.zip"

@@ -1,5 +1,5 @@
 # WIN DEV RUN
-python server.py
+python run.py
 python ultra_fast_builder.py
 # PROD RUN
 docker compose down
@@ -23,7 +23,7 @@ git push origin master --force
 
 # UPDATE
 git add .
-git commit -m "v0.0.31 - added support of multi APK"
+git commit -m "v0.0.32 - flask changed to fastapi"
 git push
 
 # DEV LOG
@@ -58,3 +58,4 @@ v0.0.28 - test 1
 v0.0.29 - test 2
 v0.0.30 - test 3
 v0.0.31 - added support of multi APK
+v0.0.32 - flask changed to fastapi

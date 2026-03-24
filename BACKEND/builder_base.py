@@ -33,7 +33,7 @@ class APKBuilderBase(ABC):
     build tool discovery, APK alignment, and signing.
 
     Attributes:
-        core_dir: Path to CORE directory containing build scripts
+        core_dir: Path to BACKEND directory containing build scripts
         is_windows: True if running on Windows
         work_dir_base: Base directory for temporary build files
         sdk_dir: Path to Android SDK
@@ -54,7 +54,7 @@ class APKBuilderBase(ABC):
         """Initialize builder with core directory.
 
         Args:
-            core_dir: Path to CORE directory containing scripts and templates
+            core_dir: Path to BACKEND directory containing scripts and templates
         """
         self.core_dir: str = core_dir
         self.is_windows: bool = os.name == 'nt'

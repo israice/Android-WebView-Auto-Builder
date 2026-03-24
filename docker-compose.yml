@@ -47,16 +47,16 @@ services:
     tmpfs:
       - /tmp:size=100M,mode=1777
     # Ensure script is executable, fix line endings (for Windows users), auto-update from git, and run the web server
-    # Using 'exec' to make gunicorn PID 1 for graceful reload support via SIGHUP
+    # Using 'exec' to make uvicorn PID 1 for graceful reload support via SIGHUP
     command: >
       /bin/bash -c "
-      dos2unix CORE/linux_mac_build_apk.sh &&
-      chmod +x CORE/linux_mac_build_apk.sh &&
+      dos2unix BACKEND/linux_mac_build_apk.sh &&
+      chmod +x BACKEND/linux_mac_build_apk.sh &&
       git config --global --add safe.directory /app &&
       if [ -d /app/.git ]; then
         git fetch origin && git reset --hard origin/master || true
       fi &&
-      exec gunicorn --bind 0.0.0.0:5000 --workers 1 --threads 4 --preload server:app
+      exec uvicorn run:app --host 0.0.0.0 --port 5000 --workers 1
       "
 
 networks:
